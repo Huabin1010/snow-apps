@@ -173,6 +173,7 @@ void ScreenshotCaptureWorker::capture(const ScreenshotCaptureRequest& request,
     SNOW_SHOT_CAPTURE_PERF_MILESTONE("capture.native_returned");
     if (nativeResult == nullptr) {
         const QString captureError = nativeCaptureError("Screenshot capture failed");
+        qWarning("Screenshot capture failed: %s", qPrintable(captureError));
         static_cast<void>(snow_capture_desktop_session_reset_to_prepared(m_session));
         captureResult.errorMessage = captureError;
         postCaptureResult(coordinator, std::move(captureResult));
@@ -223,6 +224,37 @@ void ScreenshotCaptureWorker::capture(const ScreenshotCaptureRequest& request,
         display.nativeDisplayId = geometry.display_id;
         display.backingScale = geometry.backing_scale;
         display.canvasUsesPoints = true;
+#else
+        // Linux frames carry pixels only. The layout snapshot has the point-space
+        // rectangle the overlay was prepared with; without it the frame is rejected
+        // and the selection mask never appears.
+        if (layout != nullptr) {
+            const size_t layoutCount = snow_capture_desktop_layout_count(layout.get());
+            for (size_t layoutIndex = 0; layoutIndex < layoutCount; ++layoutIndex) {
+                SnowCaptureDisplayDescriptor descriptor{};
+                descriptor.version = 1;
+                descriptor.struct_size = sizeof(descriptor);
+                if (!snow_capture_desktop_layout_display(layout.get(), layoutIndex, &descriptor)) {
+                    continue;
+                }
+                if (QString::fromUtf8(descriptor.stable_id) != display.stableId) {
+                    continue;
+                }
+                display.nativeDisplayId = descriptor.display_id;
+                display.canvasUsesPoints = descriptor.coordinate_space == 1;
+                if (display.canvasUsesPoints) {
+                    display.capturedLogicalRect =
+                        QRect(qRound(descriptor.x), qRound(descriptor.y), qRound(descriptor.width),
+                              qRound(descriptor.height));
+                    display.backingScale = descriptor.backing_scale;
+                    display.physicalRect =
+                        QRect(qRound(descriptor.x), qRound(descriptor.y),
+                              static_cast<int>(descriptor.pixel_width),
+                              static_cast<int>(descriptor.pixel_height));
+                }
+                break;
+            }
+        }
 #endif
         display.canvasRect = display.physicalRect;
         display.image = std::move(image);
@@ -249,6 +281,7 @@ void ScreenshotCaptureWorker::capture(const ScreenshotCaptureRequest& request,
 
     if (!valid && captureResult.errorMessage.isEmpty()) {
         captureResult.errorMessage = nativeCaptureError("Screenshot capture returned invalid data");
+        qWarning("Screenshot capture returned no frame: %s", qPrintable(captureResult.errorMessage));
     }
     if (!valid) {
         captureResult.displays.clear();

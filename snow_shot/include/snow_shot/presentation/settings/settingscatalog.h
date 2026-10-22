@@ -430,6 +430,7 @@ struct SettingsCustomDefinition {
 enum class SettingsTrayMenuOptionKind {
     QuickAction,
     ShowMainWindow,
+    OpenSettings,
     RestartApp,
     Exit,
     WindowGrouping,

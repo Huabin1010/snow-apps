@@ -1035,10 +1035,17 @@ void capturedOverlayWaitsForImageAndSelectionInEitherOrder() {
         } else {
             runtime.deliverResult(result);
         }
+#ifdef Q_OS_LINUX
+        require(runtime.showOverlayCalls == (selectionFirst ? 0 : 1),
+                selectionFirst ? "selection without a frame must not show the mask"
+                               : "Linux shows the mask when the captured frame arrives");
+#else
         require(runtime.showOverlayCalls == 0,
                 "neither the image nor the selection alone may show or warm the overlay");
+#endif
+        const int showsAfterOneSide = runtime.showOverlayCalls;
         workflow.handleInitialSmartSelectionResolved(state.sessionId + 1);
-        require(runtime.showOverlayCalls == 0,
+        require(runtime.showOverlayCalls == showsAfterOneSide,
                 "a different session's selection must not release the reveal gate");
 
         if (selectionFirst) {
@@ -1211,9 +1218,9 @@ void displayChangesRefreshWithoutCancelingIdleOrActiveCapture() {
                      activeSelection, activeSmartSelection, activeRuntime);
     activeWorkflow.startCapture();
     activeWorkflow.handleDisplayConfigurationChanged();
-    require(!activeState.captureInProgress && activeRuntime.refreshLayoutCalls == 1 &&
-                activeRuntime.cancelActiveCaptureCalls == 1,
-            "display changes during startup must cancel capture and refresh layout");
+    require(activeState.captureInProgress && activeRuntime.refreshLayoutCalls == 0 &&
+                activeRuntime.cancelActiveCaptureCalls == 0,
+            "a display signal while the first frame is starting must not cancel that capture");
 
     CapturedDisplayModel snapshot;
     snapshot.stableId = QStringLiteral("primary");
@@ -1221,8 +1228,8 @@ void displayChangesRefreshWithoutCancelingIdleOrActiveCapture() {
     snapshot.physicalRect = QRect(0, 0, 64, 48);
     snapshot.image = QImage(snapshot.physicalRect.size(), QImage::Format_RGBA8888);
     activeRuntime.deliverResult(successfulResult(activeState.sessionId, snapshot));
-    require(activeRuntime.refreshLayoutCalls == 1 && activeState.layoutDirty,
-            "a display change during capture must refresh after capture completion");
+    require(activeRuntime.refreshLayoutCalls == 1,
+            "a display change during capture must refresh after the frame arrives");
 }
 
 void capturedImagePlacementFollowsNormalizedCanvasGeometry() {
@@ -2081,7 +2088,12 @@ void invocationSnapshotIsSharedUntilInput() {
     frame.image = QImage(64, 48, QImage::Format_RGB32);
     frame.image.fill(Qt::red);
     runtime.deliverResult(successfulResult(state.sessionId, frame));
+#ifdef Q_OS_LINUX
+    require(runtime.showOverlayCalls == 1,
+            "Linux reveals the mask as soon as the captured frame arrives");
+#else
     require(runtime.showOverlayCalls == 0, "frames must wait for the invocation selection result");
+#endif
     workflow.handleInitialSmartSelectionResolved(state.sessionId);
     require(runtime.showOverlayCalls == 1 && displays.startup->anchored() &&
                 displays.anchoredCursorPosition() == std::optional<QPoint>(QPoint(17, 11)),

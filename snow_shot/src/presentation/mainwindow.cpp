@@ -84,8 +84,13 @@ MainWindow::MainWindow(const snow_shot::presentation::settings::SettingsRegistry
     setObjectName(QStringLiteral("snowShotMainWindow"));
     setAccessibleName(snow_shot::app::edition::isMini ? snow_shot::app::edition::productName()
                                                       : QStringLiteral("SnowShot"));
+#ifdef Q_OS_LINUX
+    // Match the desktop entry name so GNOME does not render "SnowShot — Snow Shot".
+    setWindowTitle(snow_shot::app::edition::productName());
+#else
     setWindowTitle(snow_shot::app::edition::isMini ? snow_shot::app::edition::productName()
                                                    : QStringLiteral("SnowShot"));
+#endif
     resize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT);
     setMinimumSize(MAIN_WINDOW_MIN_WIDTH, MAIN_WINDOW_MIN_HEIGHT);
     setMouseTracking(true);
@@ -148,6 +153,10 @@ void MainWindow::changeEvent(QEvent* event) {
         event->type() == QEvent::ApplicationPaletteChange) {
         applyTheme(snow_shot::presentation::styles::ThemeManager::instance().themeColorScheme());
     }
+#ifdef Q_OS_LINUX
+    if (event->type() == QEvent::LanguageChange)
+        setWindowTitle(snow_shot::app::edition::productName());
+#endif
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
@@ -195,6 +204,7 @@ void MainWindow::buildUi() {
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
+#ifndef Q_OS_LINUX
     m_titleBarBottomShadow = new TitleBarBottomShadowWidget(root);
     m_titleBarBottomShadow->setObjectName(QStringLiteral("titleBarBottomShadow"));
     m_titleBarBottomShadow->hide();
@@ -214,6 +224,11 @@ void MainWindow::buildUi() {
     connect(titleBar->closeButton(), &QAbstractButton::clicked, this, &QWidget::close);
 #endif
     m_titleBar = titleBar;
+#else
+    // GNOME already shows the application title and caption buttons. A second
+    // SnowShot bar inside the window only repeats that chrome.
+    Q_UNUSED(metric);
+#endif
 
     auto* body = new QWidget(root);
     m_body = body;

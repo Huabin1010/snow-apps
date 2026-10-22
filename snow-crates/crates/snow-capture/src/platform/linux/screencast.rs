@@ -1,6 +1,6 @@
-//! ScreenCast sources. The portal is tried first, with a short wait so a
-//! permission dialog does not stall capture. Mutter's ScreenCast then records
-//! a rectangle without a dialog. The caller falls back to X11 after both.
+//! ScreenCast sources. Mutter records a rectangle without asking the user to
+//! pick a screen. The portal is the fallback, and its restore token keeps that
+//! permission from being requested again. The caller falls back to X11 after both.
 
 use std::collections::HashMap;
 use std::os::fd::OwnedFd;
@@ -15,8 +15,9 @@ use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 use super::pipewire::{Pump, Region};
 
-const PORTAL_WAIT: Duration = Duration::from_millis(1500);
+const PORTAL_WAIT: Duration = Duration::from_secs(60);
 const FRAME_WAIT: Duration = Duration::from_millis(800);
+const PERSIST_UNTIL_REVOKED: u32 = 2;
 
 struct StreamInfo {
     node_id: u32,
@@ -46,16 +47,39 @@ pub(crate) fn open(x: i32, y: i32, width: u32, height: u32, window: Option<u64>)
             return Some(pump);
         }
     }
-    if let Some(pump) = portal(region) {
-        return Some(pump);
+    // Mutter does not show a share dialog. Starting the portal first leaves that
+    // dialog on screen even when this process then records through Mutter.
+    for source in area_sources() {
+        match source {
+            AreaSource::Mutter => {
+                let mut options = HashMap::new();
+                options.insert("cursor-mode".to_owned(), Value::U32(0));
+                if let Some(pump) = mutter(
+                    "RecordArea",
+                    &(x, y, width as i32, height as i32, options),
+                    region,
+                ) {
+                    return Some(pump);
+                }
+            }
+            AreaSource::Portal => {
+                if let Some(pump) = portal(region) {
+                    return Some(pump);
+                }
+            }
+        }
     }
-    let mut options = HashMap::new();
-    options.insert("cursor-mode".to_owned(), Value::U32(0));
-    mutter(
-        "RecordArea",
-        &(x, y, width as i32, height as i32, options),
-        region,
-    )
+    None
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AreaSource {
+    Mutter,
+    Portal,
+}
+
+fn area_sources() -> &'static [AreaSource] {
+    &[AreaSource::Mutter, AreaSource::Portal]
 }
 
 fn portal(region: Region) -> Option<Pump> {
@@ -124,11 +148,8 @@ fn portal_grant() -> Result<PortalGrant, String> {
         .expect("session path")
     });
     let sources_token = token();
-    let mut sources = HashMap::new();
+    let mut sources = portal_select_options(read_restore_token().as_deref());
     sources.insert("handle_token".to_owned(), string_value(&sources_token));
-    sources.insert("types".to_owned(), Value::U32(1));
-    sources.insert("cursor_mode".to_owned(), Value::U32(1));
-    sources.insert("multiple".to_owned(), Value::Bool(false));
     call_request(
         &connection,
         &screencast,
@@ -152,6 +173,9 @@ fn portal_grant() -> Result<PortalGrant, String> {
         .get("streams")
         .and_then(|value| first_stream(value.clone()))
         .ok_or_else(|| "portal screencast returned no stream".to_owned())?;
+    if let Some(token) = owned_string(started.get("restore_token")) {
+        write_restore_token(&token);
+    }
     let remote: zbus::zvariant::OwnedFd = screencast
         .call(
             "OpenPipeWireRemote",
@@ -316,6 +340,74 @@ fn pipewire_socket() -> Option<OwnedFd> {
     UnixStream::connect(path).ok().map(OwnedFd::from)
 }
 
+fn restore_token_file() -> Option<std::path::PathBuf> {
+    let cache = std::env::var_os("XDG_CACHE_HOME")
+        .map(std::path::PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cache"))
+        })?;
+    Some(cache.join("snow-shot").join("screencast-restore-token"))
+}
+
+fn read_restore_token() -> Option<String> {
+    read_token_file(&restore_token_file()?)
+}
+
+fn write_restore_token(token: &str) {
+    if let Some(path) = restore_token_file() {
+        let _ = write_token_file(&path, token);
+    }
+}
+
+fn read_token_file(path: &std::path::Path) -> Option<String> {
+    let token = std::fs::read_to_string(path).ok()?.trim().to_owned();
+    if token.is_empty() { None } else { Some(token) }
+}
+
+fn write_token_file(path: &std::path::Path, token: &str) -> bool {
+    let token = token.trim();
+    if token.is_empty() {
+        return false;
+    }
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    if std::fs::create_dir_all(parent).is_err() {
+        return false;
+    }
+    let temporary = path.with_extension("tmp");
+    if std::fs::write(&temporary, token.as_bytes()).is_err() {
+        return false;
+    }
+    std::fs::rename(temporary, path).is_ok()
+}
+
+fn owned_string(value: Option<&OwnedValue>) -> Option<String> {
+    let value: Value = value?.try_clone().ok()?.into();
+    match value {
+        Value::Str(text) => {
+            let token = text.as_str().trim().to_owned();
+            if token.is_empty() { None } else { Some(token) }
+        }
+        _ => None,
+    }
+}
+
+fn portal_select_options(saved_token: Option<&str>) -> HashMap<String, Value<'static>> {
+    let mut sources = HashMap::new();
+    sources.insert("types".to_owned(), Value::U32(1));
+    sources.insert("cursor_mode".to_owned(), Value::U32(1));
+    sources.insert("multiple".to_owned(), Value::Bool(false));
+    // Keep the user's screen choice until they revoke it. The next screenshot
+    // passes the token back and the portal does not open the picker again.
+    sources.insert("persist_mode".to_owned(), Value::U32(PERSIST_UNTIL_REVOKED));
+    if let Some(token) = saved_token.map(str::trim).filter(|token| !token.is_empty()) {
+        sources.insert("restore_token".to_owned(), string_value(token));
+    }
+    sources
+}
+
 fn token() -> String {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     format!(
@@ -376,5 +468,51 @@ fn as_i32(value: &Value) -> Option<i32> {
         Value::I32(value) => Some(*value),
         Value::U32(value) => i32::try_from(*value).ok(),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        area_sources, portal_select_options, read_token_file, write_token_file, AreaSource,
+        PERSIST_UNTIL_REVOKED,
+    };
+    use zbus::zvariant::Value;
+
+    #[test]
+    fn desktop_capture_uses_mutter_before_the_share_dialog() {
+        assert_eq!(area_sources(), &[AreaSource::Mutter, AreaSource::Portal]);
+    }
+
+    #[test]
+    fn portal_remembers_a_screen_and_restores_it_next_time() {
+        let first = portal_select_options(None);
+        assert!(matches!(first.get("persist_mode"), Some(Value::U32(mode)) if *mode == PERSIST_UNTIL_REVOKED));
+        assert!(!first.contains_key("restore_token"));
+
+        let again = portal_select_options(Some(" remembered-screen "));
+        assert!(matches!(again.get("restore_token"), Some(Value::Str(token)) if token.as_str() == "remembered-screen"));
+        assert!(matches!(again.get("types"), Some(Value::U32(kind)) if *kind == 1));
+    }
+
+    #[test]
+    fn restore_token_round_trips_and_ignores_blanks() {
+        let directory = std::env::temp_dir().join(format!(
+            "snow-shot-screencast-token-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let path = directory.join("screencast-restore-token");
+        assert!(!write_token_file(&path, "  "));
+        assert!(read_token_file(&path).is_none());
+        assert!(write_token_file(&path, " remembered-screen \n"));
+        assert_eq!(
+            read_token_file(&path).as_deref(),
+            Some("remembered-screen")
+        );
+        let _ = std::fs::remove_dir_all(directory);
     }
 }

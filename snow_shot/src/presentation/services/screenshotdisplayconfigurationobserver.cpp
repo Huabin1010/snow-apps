@@ -69,7 +69,10 @@ void ScreenshotDisplayConfigurationObserver::handleApplicationStateChanged(
     if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended) {
         // Hidden/suspended windows do not need their toolbar rasters retained at the active budget.
         adqt::icons::trimIconCache(512 * 1024);
-        notifyChanged();
+        // Losing the panel menu or focus is not a monitor change. Treating it as
+        // one cancels a screenshot that was just started from the status menu.
+        if (state == Qt::ApplicationSuspended)
+            notifyChanged();
     }
 }
 

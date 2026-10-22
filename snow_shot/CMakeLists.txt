@@ -3592,6 +3592,13 @@ if(SNOW_SHOT_BUILD_TESTS)
         NAME snow-shot-system-tray-controller-tests
         COMMAND snow-shot-system-tray-controller-tests
     )
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(snow-shot-system-tray-controller-tests PRIVATE Qt6::DBus)
+        add_test(NAME snow-shot-linux-status-notifier-tests
+            COMMAND snow-shot-system-tray-controller-tests --status-notifier-only)
+        set_tests_properties(snow-shot-linux-status-notifier-tests PROPERTIES
+            LABELS "unit" TIMEOUT 30)
+    endif()
     add_test(NAME snow-shot-pinned-visibility-tray-tests
         COMMAND snow-shot-system-tray-controller-tests --hide-show-tray-only -platform offscreen)
     set_tests_properties(snow-shot-pinned-visibility-tray-tests PROPERTIES
@@ -4638,6 +4645,58 @@ if(SNOW_SHOT_BUILD_TESTS)
             COMMAND snow-shot-linux-machine-capability-tests)
         set_tests_properties(snow-shot-linux-machine-capability-tests PROPERTIES
             LABELS "unit" TIMEOUT 30)
+
+        add_executable(snow-shot-linux-autostart-tests
+            tests/linux_autostart_tests.cpp
+            src/platform/linux/autostartregistration.cpp
+            src/platform/linux/administratorlaunch.cpp
+        )
+        target_include_directories(snow-shot-linux-autostart-tests PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/include")
+        target_link_libraries(snow-shot-linux-autostart-tests PRIVATE Qt6::Core)
+        add_test(NAME snow-shot-linux-autostart-tests
+            COMMAND snow-shot-linux-autostart-tests)
+        set_tests_properties(snow-shot-linux-autostart-tests PROPERTIES
+            LABELS "unit" TIMEOUT 30)
+
+        get_target_property(_linux_tray_window_sources snow-shot-about-page-tests SOURCES)
+        list(REMOVE_ITEM _linux_tray_window_sources tests/about_page_tests.cpp)
+        add_executable(snow-shot-linux-tray-window-tests
+            tests/linux_tray_window_tests.cpp
+            include/snow_shot/presentation/systemtraycontroller.h
+            include/snow_shot/presentation/pinnedwindowgroupmanager.h
+            src/presentation/services/systemtraycontroller.cpp
+            src/presentation/services/pinnedwindowgroupmanager.cpp
+            ${_linux_tray_window_sources}
+        )
+        target_include_directories(snow-shot-linux-tray-window-tests PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/include"
+            "${SNOW_SHOT_DRAW_ENGINE_QT_DIR}/include")
+        target_link_libraries(snow-shot-linux-tray-window-tests PRIVATE
+            snow_shot_settings
+            snow_shot_image_codec
+            snow_shot_updates
+            snow_shot_system_notification_controller
+            ant_design_qt
+            snow_shot_settings_catalog
+            Qt6::Widgets
+            Qt6::DBus)
+        qt_import_plugins(snow-shot-linux-tray-window-tests EXCLUDE Qt6::QICOPlugin)
+        qt_add_resources(snow-shot-linux-tray-window-tests "snow_shot_linux_tray_window_assets"
+            PREFIX "/snow-shot/app-icons"
+            BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources"
+            FILES
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/snow-shot-tray-default.png"
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/snow-shot-tray-light.png"
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/snow-shot-tray-dark.png"
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/snow-shot-tray-snow-default.png"
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/snow-shot-tray-snow-light.png"
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/snow-shot-tray-snow-dark.png")
+        snow_shot_add_translations(snow-shot-linux-tray-window-tests)
+        add_test(NAME snow-shot-linux-tray-window-tests
+            COMMAND snow-shot-linux-tray-window-tests)
+        set_tests_properties(snow-shot-linux-tray-window-tests PROPERTIES
+            LABELS "unit" TIMEOUT 60)
     endif()
     target_include_directories(snow-shot-scrolling-auto-scroll-tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"

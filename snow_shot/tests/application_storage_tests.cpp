@@ -763,7 +763,7 @@ void settingsSchemaDefaultsAndValidationAreComplete() {
                     QStringLiteral("quick.screen-record"),
                     QStringLiteral("quick.toggle-global-hotkeys"),
                     QStringLiteral("tray.window-grouping"), QStringLiteral("tray.show-main-window"),
-                    QStringLiteral("tray.exit")},
+                    QStringLiteral("tray.open-settings"), QStringLiteral("tray.exit")},
         "new settings defaults do not match the requested contract");
 
     const QMap<QString, QJsonArray> drawingShortcutDefaults{

@@ -166,10 +166,23 @@ void brandingRetranslatesWithoutChangingIdentifiers() {
     card->setCurrentRoute(QStringLiteral("/about"));
     flushEvents();
     auto* embedded = window.findChild<AboutPageWidget*>();
+    require(embedded != nullptr, "main window constructs About");
+#ifdef Q_OS_LINUX
+    require(window.findChild<TitleBarWidget*>() == nullptr,
+            "Linux must not repeat SnowShot under the system title bar");
+    QWidget editionHost;
+    editionHost.resize(window.width(), 48);
+    TitleBarWidget editionTitleBar(
+        snow_shot::presentation::styles::ThemeManager::instance().themeColorScheme().metricAlias,
+        &editionHost);
+    editionTitleBar.resize(editionHost.width(), editionTitleBar.height());
+    editionHost.show();
+    titleBarRendersTheEditionSvg(editionTitleBar);
+#else
     auto* titleBar = window.findChild<TitleBarWidget*>();
-    require(embedded != nullptr && titleBar != nullptr,
-            "main window constructs About and title bar");
+    require(titleBar != nullptr, "main window constructs the title bar");
     titleBarRendersTheEditionSvg(*titleBar);
+#endif
     AboutPageWidget standalone;
 
     struct Case {

@@ -18,6 +18,7 @@
 #endif
 #include <QGuiApplication>
 #include <QImage>
+#include <QPalette>
 #include <QScreen>
 #include "../capture/screenshotscrollingdiagnostics.h"
 #include <QKeyEvent>
@@ -76,7 +77,16 @@ qint64 paintRegionArea(const QRegion& region) {
 ScreenshotOverlayWindow::ScreenshotOverlayWindow(ScreenshotOverlayEventSink& eventSink,
                                                  SnowCanvasWidget* canvas, QWidget* parent)
     : QWidget(parent), m_eventSink(eventSink), m_canvas(canvas) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
+#ifdef Q_OS_LINUX
+    // A Qt::Tool window is not placed over the GNOME desktop, so the selection
+    // mask never appears. A fullscreen frameless window covers that monitor.
+    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
+        setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    } else
+#endif
+    {
+        setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
+    }
 #ifdef Q_OS_MACOS
     setWindowFlag(Qt::NoDropShadowWindowHint);
 #endif
@@ -783,12 +793,22 @@ bool ScreenshotOverlayWindow::showPreparedFrameForPresentation(quint64 generatio
     if (!isPresentationCurrent(generation)) {
         return false;
     }
+    prepareWaylandSelectionSurface();
     // The presenter's internal show() publishes this reservation. A separate public
     // show() starts a new presentation even when the pooled widget remains visible.
     const QScopedValueRollback<bool> showingPreparedFrame(m_showingPreparedFrame, !isVisible());
     if (m_framePresenter != nullptr) {
         m_framePresenter->presentPreparedFrame(deferFirstPaint);
     }
+#ifdef Q_OS_LINUX
+    if (QGuiApplication::platformName() == QLatin1String("wayland") && isVisible()) {
+        raise();
+        activateWindow();
+        if (QWindow* handle = windowHandle()) {
+            handle->requestActivate();
+        }
+    }
+#endif
     return isPresentationCurrent(generation) && isVisible();
 }
 
@@ -815,6 +835,19 @@ void ScreenshotOverlayWindow::hideForNativeSurfaceRelease() {
     }
 #ifdef Q_OS_MACOS
     snow_shot::platform::retireScreenshotWindowPresentation(this);
+#endif
+#ifdef Q_OS_LINUX
+    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
+        // Mutter keeps a fullscreen surface mapped after hide(), so the mask
+        // stays on screen and the pointer keeps spinning. Drop fullscreen and
+        // the native surface before the copy finishes.
+        if (QWindow* handle = windowHandle()) {
+            handle->setWindowStates(handle->windowStates() & ~Qt::WindowFullScreen);
+        }
+        hide();
+        destroy(true, true);
+        return;
+    }
 #endif
     hide();
 }
@@ -848,11 +881,59 @@ void ScreenshotOverlayWindow::restoreNativeSurface() {
     hide();
 }
 
+void ScreenshotOverlayWindow::prepareWaylandSelectionSurface() {
+#ifdef Q_OS_LINUX
+    if (QGuiApplication::platformName() != QLatin1String("wayland")) {
+        return;
+    }
+    // A translucent tool window is not mapped over the GNOME desktop, so the
+    // selection mask is invisible. An opaque fullscreen window shows the
+    // captured frame and receives the drag.
+    setAttribute(Qt::WA_TranslucentBackground, false);
+    setAttribute(Qt::WA_NoSystemBackground, false);
+    setAttribute(Qt::WA_ShowWithoutActivating, false);
+    setAutoFillBackground(true);
+    QPalette surface = palette();
+    surface.setColor(QPalette::Window, QColor(0, 0, 0));
+    setPalette(surface);
+    if (screen() != nullptr) {
+        setGeometry(screen()->geometry());
+    }
+    if ((windowState() & Qt::WindowFullScreen) == 0) {
+        setWindowState(windowState() | Qt::WindowFullScreen);
+    }
+#endif
+}
+
 void ScreenshotOverlayWindow::initializeScreenshotSurface() {
     // Capture coordinates cover the full display, including the macOS menu bar
     // and notch band. Qt's default safe-area margins would inset the canvas and
     // break its alignment with the captured pixels and pointer coordinates.
     setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea, false);
+
+#ifdef Q_OS_LINUX
+    // GNOME does not put a translucent surface over the desktop. The captured
+    // frame is painted into an opaque fullscreen window instead.
+    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
+        setAttribute(Qt::WA_TranslucentBackground, false);
+        setAttribute(Qt::WA_NoSystemBackground, false);
+        setAttribute(Qt::WA_ShowWithoutActivating, false);
+        setAttribute(Qt::WA_TransparentForMouseEvents, false);
+        setAutoFillBackground(true);
+        QPalette surface = palette();
+        surface.setColor(QPalette::Window, QColor(0, 0, 0));
+        setPalette(surface);
+        if (m_canvas != nullptr) {
+            m_canvas->setAttribute(Qt::WA_OpaquePaintEvent, true);
+            m_canvas->setAttribute(Qt::WA_TranslucentBackground, false);
+            m_canvas->setAttribute(Qt::WA_NoSystemBackground, false);
+            m_canvas->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+            m_canvas->setAttribute(Qt::WA_NoMousePropagation, true);
+            m_canvas->setAutoFillBackground(true);
+        }
+        return;
+    }
+#endif
 
     // Keep the native surface mode stable after winId/show. Runtime toggling of
     // WA_TranslucentBackground is unreliable for top-level layered windows on Windows.

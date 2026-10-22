@@ -17,6 +17,10 @@
 
 namespace snow_shot::presentation {
 namespace {
+int ignoreXError(Display*, XErrorEvent*) {
+    return 0;
+}
+
 constexpr unsigned long kStopTimeoutMilliseconds = 2000;
 
 Qt::MouseButton qtButton(int button) {
@@ -134,9 +138,15 @@ class LinuxGlobalMouseBackend final : public GlobalMouseBackend {
             range->device_events.first = ButtonPress;
             range->device_events.last = MotionNotify;
             XRecordClientSpec clients = XRecordAllClients;
+            XSetErrorHandler(ignoreXError);
             m_record.context = XRecordCreateContext(m_record.control, 0, &clients, 1, &range, 1);
-            XRecordEnableContext(data, m_record.context, recordCallback,
-                                 reinterpret_cast<XPointer>(&m_record));
+            XFlush(m_record.control);
+            if (m_record.context != 0) {
+                XRecordEnableContext(data, m_record.context, recordCallback,
+                                     reinterpret_cast<XPointer>(&m_record));
+            } else if (failure) {
+                failure(4);
+            }
             XCloseDisplay(data);
             Q_UNUSED(failure);
         });

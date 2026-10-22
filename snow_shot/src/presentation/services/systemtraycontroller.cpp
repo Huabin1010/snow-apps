@@ -463,6 +463,20 @@ class SystemTrayController::Impl {
                                  return;
                              }
 #endif
+#ifdef Q_OS_LINUX
+                            // GNOME expands the published status menu on a single click.
+                            // A double-click is delivered as Activate/Trigger; that opens
+                            // settings, because a grab popup cannot be shown from the tray.
+                            if (reason == QSystemTrayIcon::Trigger ||
+                                reason == QSystemTrayIcon::DoubleClick) {
+                                emit q.openFunctionSettingsRequested();
+                                return;
+                            }
+                            if (reason == QSystemTrayIcon::Context) {
+                                showExpandedMenu();
+                                return;
+                            }
+#endif
                              if (reason == QSystemTrayIcon::Trigger) {
                                  dispatchClickAction(leftClickAction);
                              } else if (reason == QSystemTrayIcon::MiddleClick) {
@@ -581,6 +595,22 @@ class SystemTrayController::Impl {
         notificationDelivery->show({title, message, severity, action, filePath});
     }
 
+    void publishStatusMenu() {
+        if (menu == nullptr)
+            createMenu();
+#ifdef Q_OS_LINUX
+        menu->setDeleteOnHide(false);
+        trayIcon->setContextMenu(menu);
+#endif
+    }
+
+    void showExpandedMenu() {
+        publishStatusMenu();
+        if (menu->isPopupVisible())
+            return;
+        menu->popupAt(systemTrayMenuPosition(trayIcon->geometry(), QCursor::pos()));
+    }
+
     void buildMenu() {
         separatorsBeforeGroup.resize(groups.size());
         QString windowGroupingOptionId;
@@ -622,6 +652,10 @@ class SystemTrayController::Impl {
                 case settings::SettingsTrayMenuOptionKind::ShowMainWindow:
                     QObject::connect(action, &QAction::triggered, &q,
                                      &SystemTrayController::showMainWindowRequested);
+                    break;
+                case settings::SettingsTrayMenuOptionKind::OpenSettings:
+                    QObject::connect(action, &QAction::triggered, &q,
+                                     &SystemTrayController::openFunctionSettingsRequested);
                     break;
                 case settings::SettingsTrayMenuOptionKind::RestartApp:
                     QObject::connect(action, &QAction::triggered, &q,
@@ -795,6 +829,15 @@ class SystemTrayController::Impl {
                 }
             }
         }
+#ifdef Q_OS_LINUX
+        // The status-bar menu is the way to reach the app. Keep Settings visible
+        // even when an older saved menu list does not mention it yet.
+        if (QAction* settingsAction = actions.value(QStringLiteral("tray.open-settings"))) {
+            settingsAction->setVisible(true);
+            if (!normalized.contains(QStringLiteral("tray.open-settings")))
+                normalized.push_back(QStringLiteral("tray.open-settings"));
+        }
+#endif
         menuOptions = normalized;
 
         bool priorGroupVisible = visibleGroups.value(0, false);
@@ -943,6 +986,7 @@ void SystemTrayController::show() {
         return;
     }
     m_impl->updateIcon();
+    m_impl->publishStatusMenu();
     m_impl->trayIcon->show();
 }
 

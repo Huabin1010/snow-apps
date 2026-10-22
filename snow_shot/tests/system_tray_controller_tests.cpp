@@ -16,6 +16,11 @@
 
 #include <QAction>
 #include <QApplication>
+#ifdef Q_OS_LINUX
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QProcess>
+#endif
 #include <QBuffer>
 #include <QDataStream>
 #include <QCoreApplication>
@@ -23,6 +28,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileDevice>
 #include <QFileInfo>
@@ -693,6 +699,176 @@ void verifyThemeIcons(const QTemporaryDir& directory) {
 
 } // namespace
 
+#ifdef Q_OS_LINUX
+QStringList statusNotifierItems() {
+    QDBusInterface watcher(QStringLiteral("org.kde.StatusNotifierWatcher"),
+                           QStringLiteral("/StatusNotifierWatcher"),
+                           QStringLiteral("org.kde.StatusNotifierWatcher"),
+                           QDBusConnection::sessionBus());
+    require(watcher.isValid(),
+            "the session bus must expose org.kde.StatusNotifierWatcher for a resident tray");
+    const QVariant items = watcher.property("RegisteredStatusNotifierItems");
+    require(items.isValid(), "StatusNotifierWatcher must publish RegisteredStatusNotifierItems");
+    return items.toStringList();
+}
+
+bool splitStatusItem(const QString& item, QString* service, QString* path) {
+    const int at = item.indexOf(QLatin1Char('@'));
+    if (at <= 0 || at + 1 >= item.size())
+        return false;
+    *service = item.left(at);
+    *path = item.mid(at + 1);
+    return path->startsWith(QLatin1Char('/'));
+}
+
+QString busctlProperty(const QString& service, const QString& path, const QString& property) {
+    QProcess process;
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QObject::connect(&process, &QProcess::finished, &loop, &QEventLoop::quit);
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    process.start(QStringLiteral("busctl"),
+                  {QStringLiteral("--user"), QStringLiteral("--timeout=5"),
+                   QStringLiteral("get-property"), service, path,
+                   QStringLiteral("org.kde.StatusNotifierItem"), property});
+    timeout.start(6000);
+    loop.exec();
+    if (process.state() != QProcess::NotRunning)
+        process.kill();
+    const QString error = QString::fromUtf8(process.readAllStandardError()).trimmed();
+    if (process.exitCode() != 0 || !error.isEmpty())
+        std::cerr << "busctl " << property.toStdString() << " failed: " << error.toStdString()
+                  << '\n';
+    require(process.exitCode() == 0, "the status item must answer the shell property");
+    return QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+}
+
+QStringList addedStatusItems(const QStringList& before) {
+    QStringList added;
+    for (const QString& item : statusNotifierItems()) {
+        if (!before.contains(item))
+            added.append(item);
+    }
+    return added;
+}
+
+void verifyStatusNotifierResidency(snow_shot::presentation::SystemTrayController& controller) {
+    require(QDBusConnection::sessionBus().isConnected(),
+            "a resident status icon needs the user session bus");
+    require(QSystemTrayIcon::isSystemTrayAvailable(),
+            "Qt must see the StatusNotifierWatcher before the tray is shown");
+    const QStringList before = statusNotifierItems();
+    controller.setMenuOptions(snow_shot::storage::TraySettings().menuOptions());
+    controller.setEnabled(true);
+    controller.show();
+    QStringList added;
+    waitFor(
+        [&] {
+            added = addedStatusItems(before);
+            return added.size() == 1;
+        },
+        "showing the tray must register exactly one StatusNotifierItem with the shell watcher");
+    QString service;
+    QString path;
+    require(splitStatusItem(added.first(), &service, &path),
+            "a registered status item must be service@object-path");
+    const QString status = busctlProperty(service, path, QStringLiteral("Status"));
+    require(status == QStringLiteral("s \"Active\""),
+            "a visible tray item must report Status=Active to the shell");
+    const QString title = busctlProperty(service, path, QStringLiteral("Title"));
+    const QString tooltip = busctlProperty(service, path, QStringLiteral("ToolTip"));
+    if (!title.contains(QStringLiteral("Snow")) && !tooltip.contains(QStringLiteral("Snow"))) {
+        std::cerr << "Title=" << title.toStdString() << "\nToolTip=" << tooltip.toStdString() << '\n';
+    }
+    require(title.contains(QStringLiteral("Snow")) || tooltip.contains(QStringLiteral("Snow")),
+            "the status item must identify itself as Snow Shot");
+    const QString iconName = busctlProperty(service, path, QStringLiteral("IconName"));
+    const QString iconPixmap = busctlProperty(service, path, QStringLiteral("IconPixmap"));
+    const bool namedIcon = iconName.startsWith(QStringLiteral("s \"")) &&
+                           iconName != QStringLiteral("s \"\"");
+    const bool pixmapIcon = iconPixmap.startsWith(QStringLiteral("a(iiay)")) &&
+                            !iconPixmap.startsWith(QStringLiteral("a(iiay) 0"));
+    require(namedIcon || pixmapIcon,
+            "the status item must publish an icon name or a pixmap the shell can draw");
+
+    auto* trayIcon = controller.findChild<QSystemTrayIcon*>();
+    require(trayIcon != nullptr && trayIcon->isVisible() && !trayIcon->icon().isNull(),
+            "the tray icon must stay visible with a non-empty pixmap");
+    require(trayIcon->toolTip() == QStringLiteral("SnowShot"),
+            "the resident tooltip must be SnowShot");
+
+    controller.show();
+    require(addedStatusItems(before).size() == 1,
+            "showing the tray again must not register a second status item");
+
+    int screenshots = 0;
+    int mainWindows = 0;
+    int fixedShots = 0;
+    QObject::connect(&controller, &snow_shot::presentation::SystemTrayController::screenshotRequested,
+                     &controller, [&] { ++screenshots; });
+    QObject::connect(&controller,
+                     &snow_shot::presentation::SystemTrayController::showMainWindowRequested,
+                     &controller, [&] { ++mainWindows; });
+    QObject::connect(&controller, &snow_shot::presentation::SystemTrayController::quickActionRequested,
+                     &controller, [&](snow_shot::presentation::GlobalShortcutAction action) {
+                         if (action == snow_shot::presentation::GlobalShortcutAction::ScreenshotFixed)
+                             ++fixedShots;
+                     });
+    auto* menu = qobject_cast<QMenu*>(trayIcon->contextMenu());
+    require(menu != nullptr && menu->objectName() == QStringLiteral("systemTrayMenu"),
+            "showing the tray must publish the expandable status menu");
+    emit trayIcon->activated(QSystemTrayIcon::Trigger);
+    QApplication::processEvents();
+    require(screenshots == 0, "a click must open the menu and must not start a screenshot");
+    require(trayIcon->contextMenu() == menu,
+            "a click must keep the same menu the shell expands");
+    QAction* openSettings = nullptr;
+    QAction* showMainWindow = nullptr;
+    for (QAction* action : menu->actions()) {
+        if (action->data().toString() == QStringLiteral("tray.open-settings"))
+            openSettings = action;
+        if (action->data().toString() == QStringLiteral("tray.show-main-window"))
+            showMainWindow = action;
+    }
+    require(openSettings != nullptr && openSettings->isVisible() && showMainWindow != nullptr &&
+                showMainWindow->isVisible(),
+            "the expanded menu must contain Settings and the main interface");
+    int settingsOpened = 0;
+    QObject::connect(&controller,
+                     &snow_shot::presentation::SystemTrayController::openFunctionSettingsRequested,
+                     &controller, [&] { ++settingsOpened; });
+    openSettings->trigger();
+    QApplication::processEvents();
+    require(settingsOpened == 1, "choosing Settings must request the settings window");
+    showMainWindow->trigger();
+    QApplication::processEvents();
+    require(mainWindows == 1, "choosing the main interface must request the operation window");
+    menu->close();
+    emit trayIcon->activated(QSystemTrayIcon::DoubleClick);
+    QApplication::processEvents();
+    require(screenshots == 0 && trayIcon->contextMenu() == menu,
+            "a double-click must also open the status menu instead of a screenshot");
+    menu->close();
+    emit trayIcon->activated(QSystemTrayIcon::MiddleClick);
+    QApplication::processEvents();
+    require(fixedShots == 1, "the default middle click must request a fixed-size screenshot");
+
+    controller.setEnabled(false);
+    waitFor([&] { return addedStatusItems(before).isEmpty() && !trayIcon->isVisible(); },
+            "turning the tray off must unregister the status item and hide the icon");
+
+    controller.setEnabled(true);
+    controller.show();
+    waitFor([&] { return addedStatusItems(before).size() == 1 && trayIcon->isVisible(); },
+            "turning the tray back on must register the same single status item again");
+    controller.hide();
+    waitFor([&] { return addedStatusItems(before).isEmpty(); },
+            "hiding the tray must leave the status area");
+    require(!trayIcon->isVisible(), "hide() must clear the tray icon visibility");
+}
+#endif
+
 int main(int argc, char* argv[]) {
     const QString applicationName =
         QStringLiteral("system-tray-") + QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -725,6 +901,13 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     snow_shot::presentation::SystemTrayController controller;
+#ifdef Q_OS_LINUX
+    if (application.arguments().contains(QStringLiteral("--status-notifier-only"))) {
+        verifyStatusNotifierResidency(controller);
+        snow_shot::storage::ApplicationStorage::instance().shutdown();
+        return 0;
+    }
+#endif
     if (application.arguments().contains(QStringLiteral("--theme-icons-only"))) {
         verifyThemeIcons(storageDirectory);
         snow_shot::storage::ApplicationStorage::instance().shutdown();
@@ -1275,14 +1458,17 @@ int main(int argc, char* argv[]) {
     require(
         QSet<QString>(normalizedDefaultMenuOptions.cbegin(), normalizedDefaultMenuOptions.cend()) ==
                 QSet<QString>(defaultMenuOptions.cbegin(), defaultMenuOptions.cend()) &&
-            defaultVisibleActions.size() == 16 && screenshotMenuAction != nullptr &&
+            defaultVisibleActions.size() == 17 && screenshotMenuAction != nullptr &&
             screenshotMenuAction->isVisible() && delayedScreenshotMenuAction != nullptr &&
             delayedScreenshotMenuAction->isVisible() && recordingToggleMenuAction != nullptr &&
             !recordingToggleMenuAction->isVisible() && !screenshotMenuAction->icon().isNull() &&
             hotkeyToggleMenuAction != nullptr && hotkeyToggleMenuAction->isVisible() &&
             hotkeyToggleMenuAction->isCheckable() && !hotkeyToggleMenuAction->isChecked() &&
             showMainWindowMenuAction != nullptr && showMainWindowMenuAction->isVisible() &&
-            !showMainWindowMenuAction->icon().isNull() && restartMenuAction != nullptr &&
+            !showMainWindowMenuAction->icon().isNull() &&
+            actionForId(QStringLiteral("tray.open-settings")) != nullptr &&
+            actionForId(QStringLiteral("tray.open-settings"))->isVisible() &&
+            restartMenuAction != nullptr &&
             !restartMenuAction->isVisible() && !restartMenuAction->isCheckable() &&
             !restartMenuAction->icon().isNull() && exitMenuAction != nullptr &&
             exitMenuAction->isVisible() && !exitMenuAction->icon().isNull() &&
@@ -1754,7 +1940,12 @@ int main(int argc, char* argv[]) {
         snow_shot::presentation::GlobalShortcutAction::ToggleGlobalHotkeys, true);
     controller.setMenuOptions({QStringLiteral("quick.screenshot"), QStringLiteral("tray.exit")});
     const QList<QAction*> compactVisibleActions = visibleActions();
+#ifdef Q_OS_LINUX
+    require(compactVisibleActions.size() == 4 && compactVisibleActions.at(1)->isSeparator() &&
+                actionForId(QStringLiteral("tray.open-settings"))->isVisible() &&
+#else
     require(compactVisibleActions.size() == 3 && compactVisibleActions.at(1)->isSeparator() &&
+#endif
                 !windowGroupMenuAction->isVisible() && !hotkeyToggleMenuAction->isVisible() &&
                 !hotkeyToggleMenuAction->isChecked() && quickActions.size() == 3 &&
                 quickActions.last() ==

@@ -125,6 +125,17 @@ QString gtkTrigger(const QKeyCombination& combination) {
     return trigger + key;
 }
 
+int shortcutGrabError = 0;
+
+int recordGrabError(Display*, XErrorEvent* event) {
+    shortcutGrabError = event->error_code;
+    return 0;
+}
+
+int ignoreXError(Display*, XErrorEvent*) {
+    return 0;
+}
+
 unsigned xModifiers(Qt::KeyboardModifiers modifiers) {
     unsigned value = 0;
     if (modifiers.testFlag(Qt::ShiftModifier))
@@ -230,13 +241,22 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         const KeyCode keycode = XKeysymToKeycode(m_display, symbol);
         if (keycode == 0)
             return false;
-        GrabbedShortcut grabbed{registrationId, keycode, xModifiers(combination.keyboardModifiers())};
+        GrabbedShortcut grabbed{registrationId, keycode,
+                                xModifiers(combination.keyboardModifiers())};
         const unsigned variants[] = {0u, LockMask, Mod2Mask, LockMask | Mod2Mask};
+        shortcutGrabError = 0;
+        const auto previous = XSetErrorHandler(recordGrabError);
         for (unsigned extra : variants) {
             XGrabKey(m_display, keycode, grabbed.modifiers | extra, DefaultRootWindow(m_display),
                      False, GrabModeAsync, GrabModeAsync);
         }
-        XFlush(m_display);
+        XSync(m_display, False);
+        XSetErrorHandler(ignoreXError);
+        Q_UNUSED(previous);
+        if (shortcutGrabError != 0) {
+            ungrab(grabbed);
+            return false;
+        }
         m_grabs.push_back(grabbed);
         return true;
     }
@@ -245,11 +265,14 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         if (m_display == nullptr)
             return;
         const unsigned variants[] = {0u, LockMask, Mod2Mask, LockMask | Mod2Mask};
+        const auto previous = XSetErrorHandler(recordGrabError);
         for (unsigned extra : variants) {
             XUngrabKey(m_display, grabbed.keycode, grabbed.modifiers | extra,
                        DefaultRootWindow(m_display));
         }
-        XFlush(m_display);
+        XSync(m_display, False);
+        XSetErrorHandler(ignoreXError);
+        Q_UNUSED(previous);
     }
 
     bool bindPortal() {

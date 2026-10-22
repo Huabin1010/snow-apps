@@ -8,6 +8,7 @@
 #include "snow_shot/presentation/components/icons/snowshoticons.h"
 #include "icon_renderer.h"
 #include <QPainter>
+#include <QVector>
 #include "snow_shot/presentation/globalshortcutmanager.h"
 #include "snow_shot/presentation/mainwindow.h"
 #include "snow_shot/presentation/mainwindowskincontroller.h"
@@ -447,6 +448,11 @@ void mainWindowTitlesKeepSmoothRendering() {
     require(titleBar->closeButton() == nullptr && titleBar->minimizeButton() == nullptr &&
                 titleBar->maximizeButton() == nullptr,
             "macOS must not render duplicate custom traffic-light controls");
+#elif defined(Q_OS_LINUX)
+    require(window.findChild<TitleBarWidget*>() == nullptr,
+            "Linux must use the system title bar and must not repeat the SnowShot bar");
+    require(window.findChild<QWidget*>(QStringLiteral("titleBarBottomShadow")) == nullptr,
+            "Linux must not keep a shadow for the removed in-window title bar");
 #else
     auto* titleBar = window.findChild<TitleBarWidget*>();
     require(titleBar != nullptr, "non-macOS windows must retain the existing custom title bar");
@@ -602,8 +608,14 @@ void mainWindowSkinIsContinuousAndRestoresTheme(const QString& previewDirectory)
     auto* sidebar = window.findChild<SidebarWidget*>();
     auto* header = window.findChild<MainContentHeaderWidget*>();
     auto* card = window.findChild<ContentCardWidget*>();
+#ifdef Q_OS_LINUX
+    require(titleBar == nullptr, "Linux must not paint a second SnowShot title bar");
+    require(root && sidebar && header && card,
+            "exercise the actual main-window skin and surface hierarchy");
+#else
     require(root && titleBar && sidebar && header && card,
             "exercise the actual main-window skin and surface hierarchy");
+#endif
     require(root->metaObject() == &QWidget::staticMetaObject && root->autoFillBackground() &&
                 window.findChild<presentation::MainWindowSkinWidget*>() == nullptr &&
                 presentation::MainWindowSkinController::existingInstance() == nullptr,
@@ -718,11 +730,12 @@ void mainWindowSkinIsContinuousAndRestoresTheme(const QString& previewDirectory)
         QPoint point;
         bool navigation;
     };
-    const SurfaceSample samples[] = {{titleBar, QPoint(2, 2), true},
-                                     {sidebar, QPoint(2, 10), true},
+    QVector<SurfaceSample> samples = {{sidebar, QPoint(2, 10), true},
                                      {sidebar, QPoint(2, sidebar->height() - 10), true},
                                      {header, QPoint(2, 10), false},
                                      {card, QPoint(8, 40), false}};
+    if (titleBar != nullptr)
+        samples.prepend({titleBar, QPoint(2, 2), true});
     const auto sample = [root](const QImage& image, const QWidget& surface, const QPoint& point) {
         const QPoint position = surface.mapTo(root, point);
         const qreal scale = image.devicePixelRatio();

@@ -609,12 +609,14 @@ fn capture_backend_value(kind: CaptureBackendKind) -> u8 {
 fn platform_tuning(
     options: snow_capture::tuning::windows::WindowsCaptureOptions,
 ) -> snow_capture::BackendTuning {
-    #[cfg(target_os = "macos")]
+    // Windows tuning selects DXGI/WGC behavior. Linux and macOS reject it and
+    // would otherwise fail every screenshot before a frame is captured.
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         let _ = options;
         snow_capture::BackendTuning::Default
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         snow_capture::BackendTuning::Windows(options)
     }
@@ -3377,8 +3379,17 @@ mod tests {
     #[test]
     fn desktop_auto_preserves_default_target_priorities() {
         assert_eq!(desktop_backend_policy(CaptureBackendKind::Auto), None);
-        let (_, backend) = default_options(ptr::null()).unwrap();
+        let (options, backend) = default_options(ptr::null()).unwrap();
         assert_eq!(backend, CaptureBackendKind::Auto);
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        assert!(
+            matches!(options.backend_tuning, snow_capture::BackendTuning::Default),
+            "Linux and macOS screenshots must not request Windows capture tuning"
+        );
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        {
+            let _ = options;
+        }
     }
 
     #[test]

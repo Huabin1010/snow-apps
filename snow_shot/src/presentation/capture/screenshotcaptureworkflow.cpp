@@ -29,6 +29,28 @@
 #include <windows.h>
 #endif
 
+namespace {
+// Wayland can report a different QScreen geometry while a system dialog or the
+// capture overlay is created. The monitor name and pixel rect already identify
+// the display; requiring the live geometry to stay identical cancels the
+// screenshot before its selection mask appears.
+[[nodiscard]] bool startupDisplayStillCurrent(const CapturedDisplayModel& display) {
+    if (QGuiApplication::instance() == nullptr) {
+        return true;
+    }
+    if (display.screen == nullptr || !display.logicalRect.isValid() || display.logicalRect.isEmpty() ||
+        !display.physicalRect.isValid() || display.physicalRect.isEmpty()) {
+        return false;
+    }
+#ifdef Q_OS_LINUX
+    return true;
+#else
+    return display.screen->geometry() == display.logicalRect &&
+           ScreenshotGeometryMapper::physicalRectForScreen(*display.screen) == display.physicalRect;
+#endif
+}
+} // namespace
+
 ScreenshotCaptureWorkflow::ScreenshotCaptureWorkflow(ScreenshotCaptureWorkflowContext context)
     : m_startup(std::make_shared<ScreenshotStartupContext>()), m_context(std::move(context)),
       m_state(m_context.state) {
@@ -360,7 +382,16 @@ void ScreenshotCaptureWorkflow::handleDisplayConfigurationChanged() {
     if (m_startup->phase == ScreenshotStartupContext::Phase::Preparing) {
         m_state.layoutDirty = true;
         ++m_layoutChangeSerial;
-        cancelCapture();
+        // Wayland reports a display or focus change when the status menu closes
+        // and the capture overlay appears. Canceling here aborts the screenshot
+        // before its first frame. Keep this capture and refresh once it lands.
+        // An in-progress global drag still has to stop, because its geometry is
+        // already tied to the old layout.
+        if (m_startMode == StartMode::ExternalDrag) {
+            cancelCapture();
+        } else {
+            m_refreshAfterCapture = true;
+        }
         return;
     }
     if (m_startMode == StartMode::ExternalDrag &&
@@ -489,8 +520,7 @@ void ScreenshotCaptureWorkflow::finishCapturePreparation(const ScreenshotCapture
                                             });
             if (found == result.displays.cend() || attached.contains(display.stableId) ||
                 !startupFrameMatchesDisplay(display, *found) ||
-                (QGuiApplication::instance() &&
-                 (!display.screen || display.screen->geometry() != display.logicalRect))) {
+                !startupDisplayStillCurrent(display)) {
                 layoutMatches = false;
                 return;
             }
@@ -502,6 +532,7 @@ void ScreenshotCaptureWorkflow::finishCapturePreparation(const ScreenshotCapture
         });
     if (!layoutMatches || attached.size() != result.displays.size()) {
         m_state.layoutDirty = true;
+        qWarning("Screenshot selection mask canceled: captured frame did not match the display");
         cancelCapture();
         return;
     }
@@ -598,15 +629,17 @@ void ScreenshotCaptureWorkflow::showCapturePresentationWhenReady(quint64 session
     }
     if (m_initialSmartSelectionPendingSessionId == sessionId &&
         m_initialSmartSelectionResolvedSessionId != sessionId) {
+#ifndef Q_OS_LINUX
         return;
+#else
+        // The mask is the screenshot UI. Waiting for an accessibility hit-test
+        // leaves the screen unchanged when that result never arrives.
+        m_initialSmartSelectionResolvedSessionId = sessionId;
+#endif
     }
 
-    if (QGuiApplication::instance() &&
-        std::any_of(
-            m_startup->qtDisplays.cbegin(), m_startup->qtDisplays.cend(), [](const auto& d) {
-                return !d.screen || d.screen->geometry() != d.logicalRect ||
-                       ScreenshotGeometryMapper::physicalRectForScreen(*d.screen) != d.physicalRect;
-            })) {
+    if (std::any_of(m_startup->qtDisplays.cbegin(), m_startup->qtDisplays.cend(),
+                    [](const auto& display) { return !startupDisplayStillCurrent(display); })) {
         m_state.layoutDirty = true;
         cancelCapture();
         return;
@@ -706,12 +739,7 @@ void ScreenshotCaptureWorkflow::handleLayoutReady(const ScreenshotCaptureLayout&
     };
     const auto matched = matchStartupDisplays(
         m_startup->qtDisplays, m_startup->qtDisplaySlots, layout.displays,
-        [](const CapturedDisplayModel& qt) {
-            if (QGuiApplication::instance() == nullptr)
-                return true;
-            return qt.screen && qt.screen->geometry() == qt.logicalRect &&
-                   ScreenshotGeometryMapper::physicalRectForScreen(*qt.screen) == qt.physicalRect;
-        });
+        [](const CapturedDisplayModel& qt) { return startupDisplayStillCurrent(qt); });
     if (!matched) {
         fail();
         return;

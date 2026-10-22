@@ -68,10 +68,12 @@ ScreenshotApiMode resolveAutoScreenshotApiMode() noexcept {
             }
         }
 #endif
-#ifdef Q_OS_MACOS
-        return ScreenshotApiMode::Auto;
-#else
+#if defined(Q_OS_WIN) || defined(_WIN32)
         return ScreenshotApiMode::Gdi;
+#else
+        // Linux auto is the portal/X11 backend. GDI is a Windows fallback and
+        // produces an empty capture on this platform.
+        return ScreenshotApiMode::Auto;
 #endif
     }();
     return resolved;

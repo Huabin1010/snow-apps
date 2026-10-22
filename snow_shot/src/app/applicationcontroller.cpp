@@ -227,7 +227,15 @@ class ApplicationController::Impl {
         });
         QObject::connect(
             &systemTray, &presentation::SystemTrayController::quickActionRequested, &q,
-            [this](presentation::GlobalShortcutAction action) { dispatchQuickAction(action); });
+            [this](presentation::GlobalShortcutAction action) {
+#ifdef Q_OS_LINUX
+                // The status-menu click is still in this event. Starting capture
+                // now lets that click cancel the screenshot before a frame arrives.
+                QTimer::singleShot(150, &q, [this, action]() { dispatchQuickAction(action); });
+#else
+                dispatchQuickAction(action);
+#endif
+            });
         auto& pinnedStorage = storage::ApplicationStorage::instance();
         QObject::connect(&pinnedStorage, &storage::ApplicationStorage::pinnedWindowShowRequested,
                          &q, [this](const QString& id) {

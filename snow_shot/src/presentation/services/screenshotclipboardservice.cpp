@@ -19,6 +19,7 @@
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QPointer>
+#include <QProcess>
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
@@ -80,6 +81,31 @@ class PngClipboardMimeData final : public QMimeData {
     }
 };
 
+bool publishWaylandPngClipboard(const QByteArray& png) {
+    if (png.isEmpty() || QGuiApplication::platformName() != QLatin1String("wayland")) {
+        return false;
+    }
+    // Qt's offer is tied to this process's window. Hiding the fullscreen mask
+    // cancels that offer, so a paste target waits forever. wl-copy keeps the
+    // PNG in the compositor after the mask is gone.
+    QProcess process;
+    process.setProgram(QStringLiteral("wl-copy"));
+    process.setArguments({QStringLiteral("--type"), QStringLiteral("image/png")});
+    process.start(QIODevice::WriteOnly);
+    if (!process.waitForStarted(500)) {
+        return false;
+    }
+    const qint64 written = process.write(png);
+    process.closeWriteChannel();
+    if (!process.waitForFinished(500)) {
+        process.kill();
+        process.waitForFinished(100);
+        return false;
+    }
+    return written == png.size() && process.exitStatus() == QProcess::NormalExit &&
+           process.exitCode() == 0;
+}
+
 bool publishPngClipboard(QClipboard* clipboard, const QByteArray& png, const QByteArray& placement,
                          const QByteArray& appearance) {
 #ifdef Q_OS_MACOS
@@ -90,6 +116,12 @@ bool publishPngClipboard(QClipboard* clipboard, const QByteArray& png, const QBy
                                                                  appearance);
     }
 #endif
+    // Publish through the compositor first. Qt's own offer is cancelled when the
+    // fullscreen mask closes, which is why a successful copy never appears in
+    // another application's paste.
+    if (publishWaylandPngClipboard(png)) {
+        return true;
+    }
     clipboard->setMimeData(new PngClipboardMimeData(png, placement, appearance),
                            QClipboard::Clipboard);
     return true;

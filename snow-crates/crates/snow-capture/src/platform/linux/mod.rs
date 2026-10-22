@@ -1,5 +1,6 @@
-//! Linux capture. Wayland goes through the ScreenCast portal, then Mutter's
-//! private ScreenCast, and a pure X11 session uses XShm/XGetImage.
+//! Linux capture. GNOME records through Mutter without a share dialog. The
+//! ScreenCast portal is only the fallback, and a pure X11 session uses
+//! XShm/XGetImage.
 
 mod pipewire;
 mod pixels;

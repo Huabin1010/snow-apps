@@ -55,7 +55,9 @@ struct StartupDisplayIdentity {
     [[nodiscard]] static StartupDisplayIdentity fromDisplay(const CapturedDisplayModel& display) {
         StartupDisplayIdentity identity;
         identity.physicalRect = display.physicalRect;
-        if (display.canvasUsesPoints || display.nativeDisplayId != 0) {
+        // macOS identifies a monitor by CGDirectDisplayID. A point-space layout
+        // without that id, which Linux reports, still has to match by name.
+        if (display.nativeDisplayId != 0) {
             identity.usesNativeId = true;
             identity.nativeDisplayId = display.nativeDisplayId;
             return identity;

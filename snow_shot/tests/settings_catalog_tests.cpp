@@ -2496,7 +2496,7 @@ void globalHotkeyShortcutsHaveStableContracts() {
                 trayGroups.at(3).id == QStringLiteral("other") &&
                 trayGroups.at(3).options.size() == 7 &&
                 trayGroups.at(4).id == QStringLiteral("system") &&
-                trayGroups.at(4).options.size() == 4 && trayOptionIds.size() == 30 &&
+                trayGroups.at(4).options.size() == 5 && trayOptionIds.size() == 31 &&
                 trayOptionIds.at(7) == QStringLiteral("quick.screenshot-save") &&
                 trayOptionIds.at(8) == QStringLiteral("quick.screenshot-quick-save") &&
                 trayOptionIds.at(11) == QStringLiteral("quick.pin-clipboard-content") &&
@@ -2519,13 +2519,16 @@ void globalHotkeyShortcutsHaveStableContracts() {
                 trayGroups.at(4).options.at(0).kind ==
                     settings::SettingsTrayMenuOptionKind::WindowGrouping &&
                 trayOptionIds.at(27) == QStringLiteral("tray.show-main-window") &&
-                trayOptionIds.at(28) == QStringLiteral("tray.restart-app") &&
+                trayOptionIds.at(28) == QStringLiteral("tray.open-settings") &&
                 trayGroups.at(4).options.at(2).kind ==
+                    settings::SettingsTrayMenuOptionKind::OpenSettings &&
+                trayOptionIds.at(29) == QStringLiteral("tray.restart-app") &&
+                trayGroups.at(4).options.at(3).kind ==
                     settings::SettingsTrayMenuOptionKind::RestartApp &&
-                trayGroups.at(4).options.at(2).iconFactory &&
-                trayGroups.at(4).options.at(2).iconFactory() ==
+                trayGroups.at(4).options.at(3).iconFactory &&
+                trayGroups.at(4).options.at(3).iconFactory() ==
                     snow_shot::presentation::icons::custom::outlined::Restart() &&
-                trayOptionIds.at(29) == QStringLiteral("tray.exit") && trayMenuSchema != nullptr &&
+                trayOptionIds.at(30) == QStringLiteral("tray.exit") && trayMenuSchema != nullptr &&
                 trayMenuSchema->allowedStringValues == trayOptionIds,
             "tray menu options must derive all global-hotkey groups and append system commands");
 

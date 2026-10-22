@@ -95,3 +95,5 @@ snow-crates/crates/snow-recording-export/tests/output/
 
 # Artifacts written by the capture crackle check test
 snow-crates/crates/snow-audio-recorder/tests/output/
+
+tmp/
