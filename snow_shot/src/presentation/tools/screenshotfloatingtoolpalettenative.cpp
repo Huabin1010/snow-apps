@@ -1,5 +1,6 @@
 #include "screenshotfloatingtoolpalettenative.h"
 
+#include <QGuiApplication>
 #include <QWidget>
 
 #include <algorithm>
@@ -19,6 +20,15 @@ Qt::WindowFlags screenshot_floating_palette_native::windowFlags() {
                             Qt::WindowDoesNotAcceptFocus;
 #if !defined(Q_OS_MACOS)
     flags |= Qt::NoDropShadowWindowHint;
+#endif
+#if defined(Q_OS_LINUX)
+    // The selection mask is an override-redirect window so it can cover Wayland
+    // clients. A normal tool window is placed underneath that mask, so the
+    // annotation toolbar never appears after the selection is drawn.
+    if (QGuiApplication::platformName() != QLatin1String("wayland") &&
+        qEnvironmentVariableIsSet("WAYLAND_DISPLAY")) {
+        flags |= Qt::X11BypassWindowManagerHint;
+    }
 #endif
     return flags;
 }

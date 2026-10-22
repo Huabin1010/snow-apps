@@ -12,6 +12,7 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QEvent>
+#include <QGuiApplication>
 #include <QPainter>
 #include <QPainterPath>
 #include <QWindow>
@@ -45,9 +46,16 @@ Qt::WindowFlags colorPickerWindowFlags() {
     // The panel paints its own shadow. Cocoa otherwise builds a native shadow from
     // every non-transparent pixel and outlines that painted shadow with a hard
     // border, the same failure Message had on the recognition surface.
-    return Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
-           Qt::WindowDoesNotAcceptFocus | Qt::WindowTransparentForInput |
-           Qt::NoDropShadowWindowHint;
+    Qt::WindowFlags flags = Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+                            Qt::WindowDoesNotAcceptFocus | Qt::WindowTransparentForInput |
+                            Qt::NoDropShadowWindowHint;
+#if defined(Q_OS_LINUX)
+    if (QGuiApplication::platformName() != QLatin1String("wayland") &&
+        qEnvironmentVariableIsSet("WAYLAND_DISPLAY")) {
+        flags |= Qt::X11BypassWindowManagerHint;
+    }
+#endif
+    return flags;
 }
 
 QColor panelBackgroundForTheme(const snow_shot::presentation::styles::ThemeColorScheme& scheme) {

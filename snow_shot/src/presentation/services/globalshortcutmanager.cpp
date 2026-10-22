@@ -613,6 +613,23 @@ class GlobalShortcutManager::Impl {
                 emit q.stateChanged(action, m_states[index]);
             }
         }
+        if (m_backend)
+            m_backend->flushRegistrations();
+    }
+
+    bool activatePortableShortcut(const QString& portableText) const {
+        const QString wanted = portableText.trimmed();
+        if (wanted.isEmpty())
+            return false;
+        for (GlobalShortcutAction action : ALL_ACTIONS) {
+            for (const auto& binding : m_shortcuts[actionIndex(action)]) {
+                if (binding.portableText.compare(wanted, Qt::CaseInsensitive) == 0) {
+                    emit q.activated(action);
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     GlobalShortcutManager& q;
@@ -646,6 +663,10 @@ GlobalShortcutManager::~GlobalShortcutManager() = default;
 
 void GlobalShortcutManager::initialize() {
     m_impl->initialize();
+}
+
+bool GlobalShortcutManager::activatePortableShortcut(const QString& portableText) const {
+    return m_impl->activatePortableShortcut(portableText);
 }
 
 GlobalShortcutRegistrationState GlobalShortcutManager::state(GlobalShortcutAction action) const {

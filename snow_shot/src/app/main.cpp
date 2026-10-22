@@ -519,6 +519,16 @@ int main(int argc, char* argv[]) {
     snow_diagnostics_install_panic_hook(snow_diag_panic);
     snow_shot::diagnostics::installFfmpegDiagnostics();
 
+#ifdef Q_OS_LINUX
+    // Snipaste covers Edge and Chrome with an X11 override-redirect window.
+    // A Wayland toplevel cannot grab the pointer, so the selection drag never
+    // tracks over those browsers. XWayland still stacks above them.
+    if (qEnvironmentVariableIsSet("WAYLAND_DISPLAY") &&
+        qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
+        qputenv("QT_QPA_PLATFORM", "xcb");
+    }
+#endif
+
     // Capture overlays embed native window-type children (the floating tool
     // palette) alongside alien, click-through children (selection toolbar,
     // shortcut hints). Qt would otherwise force every sibling of an embedded
@@ -721,6 +731,8 @@ int main(int argc, char* argv[]) {
 
     snow_shot::app::ApplicationController applicationController(app);
     applicationController.start();
+    if (launchArguments.contains(QStringLiteral("--shortcut")))
+        applicationController.handleLaunchRequest(launchArguments);
     QTimer::singleShot(0, &app, [&] {
         if (snow_shot::app::parseShellImageLaunchRequest(launchArguments).requested)
             applicationController.handleLaunchRequest(launchArguments);

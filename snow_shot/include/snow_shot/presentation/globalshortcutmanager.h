@@ -29,6 +29,9 @@ class GlobalShortcutBackend {
     [[nodiscard]] virtual GlobalShortcutBackendResult
     registerShortcut(int registrationId, const snow_shot::shortcuts::ShortcutBinding& binding) = 0;
     virtual void unregisterShortcut(int registrationId) = 0;
+    // Publish a batch of registrations once. Linux uses this so GNOME asks for
+    // shortcut permission a single time instead of once per key.
+    virtual void flushRegistrations() {}
     // ID zero queries Escape only, for mouse-invoked pickers.
     [[nodiscard]] virtual std::optional<GlobalShortcutInputState> inputState(int) const {
         return std::nullopt;
@@ -61,6 +64,7 @@ class GlobalShortcutManager final : public QObject {
     [[nodiscard]] bool globalHotkeysEnabled() const;
     [[nodiscard]] bool focusedFullscreenSuppressionActive() const;
     [[nodiscard]] std::optional<GlobalShortcutInputState> inputState(int registrationId) const;
+    bool activatePortableShortcut(const QString& portableText) const;
 
   signals:
     void activated(snow_shot::presentation::GlobalShortcutAction action);

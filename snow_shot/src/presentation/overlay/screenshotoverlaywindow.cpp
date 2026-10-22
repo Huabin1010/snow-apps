@@ -28,6 +28,9 @@
 #include <QPaintEvent>
 #include <QRegion>
 #include <QScopedValueRollback>
+#ifdef Q_OS_LINUX
+#include <QtGlobal>
+#endif
 #include "snow_shot/presentation/screenshotregiontypecontrol.h"
 #include <QResizeEvent>
 #include <QVBoxLayout>
@@ -74,19 +77,51 @@ qint64 paintRegionArea(const QRegion& region) {
 #include <qt_windows.h>
 #endif
 
+namespace {
+#ifdef Q_OS_LINUX
+bool linuxWaylandDesktop() {
+    return QGuiApplication::platformName() == QLatin1String("wayland") ||
+           qEnvironmentVariableIsSet("WAYLAND_DISPLAY");
+}
+
+void configureOpaqueSelectionSurface(QWidget* window, SnowCanvasWidget* canvas) {
+    window->setAttribute(Qt::WA_TranslucentBackground, false);
+    window->setAttribute(Qt::WA_NoSystemBackground, false);
+    window->setAttribute(Qt::WA_ShowWithoutActivating, false);
+    window->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    window->setAutoFillBackground(true);
+    QPalette surface = window->palette();
+    surface.setColor(QPalette::Window, QColor(0, 0, 0));
+    window->setPalette(surface);
+    if (canvas == nullptr)
+        return;
+    canvas->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    canvas->setAttribute(Qt::WA_TranslucentBackground, false);
+    canvas->setAttribute(Qt::WA_NoSystemBackground, false);
+    canvas->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    canvas->setAttribute(Qt::WA_NoMousePropagation, true);
+    canvas->setAutoFillBackground(true);
+}
+#endif
+} // namespace
+
 ScreenshotOverlayWindow::ScreenshotOverlayWindow(ScreenshotOverlayEventSink& eventSink,
                                                  SnowCanvasWidget* canvas, QWidget* parent)
     : QWidget(parent), m_eventSink(eventSink), m_canvas(canvas) {
 #ifdef Q_OS_LINUX
     // A Qt::Tool window is not placed over the GNOME desktop, so the selection
     // mask never appears. A fullscreen frameless window covers that monitor.
+    // When the UI runs through XWayland, an override-redirect tool window is
+    // what covers Edge and Chrome the way Snipaste does.
     if (QGuiApplication::platformName() == QLatin1String("wayland")) {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    } else
-#endif
-    {
-        setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
+    } else {
+        setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint |
+                       Qt::X11BypassWindowManagerHint);
     }
+#else
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
+#endif
 #ifdef Q_OS_MACOS
     setWindowFlag(Qt::NoDropShadowWindowHint);
 #endif
@@ -807,6 +842,11 @@ bool ScreenshotOverlayWindow::showPreparedFrameForPresentation(quint64 generatio
         if (QWindow* handle = windowHandle()) {
             handle->requestActivate();
         }
+    } else if (linuxWaylandDesktop() && isVisible()) {
+        // XWayland only receives the pointer where its own window is stacked
+        // above the browser. Raise the opaque captured frame over Edge/Chrome.
+        raise();
+        activateWindow();
     }
 #endif
     return isPresentationCurrent(generation) && isVisible();
@@ -883,19 +923,14 @@ void ScreenshotOverlayWindow::restoreNativeSurface() {
 
 void ScreenshotOverlayWindow::prepareWaylandSelectionSurface() {
 #ifdef Q_OS_LINUX
-    if (QGuiApplication::platformName() != QLatin1String("wayland")) {
+    if (!linuxWaylandDesktop()) {
         return;
     }
-    // A translucent tool window is not mapped over the GNOME desktop, so the
-    // selection mask is invisible. An opaque fullscreen window shows the
-    // captured frame and receives the drag.
-    setAttribute(Qt::WA_TranslucentBackground, false);
-    setAttribute(Qt::WA_NoSystemBackground, false);
-    setAttribute(Qt::WA_ShowWithoutActivating, false);
-    setAutoFillBackground(true);
-    QPalette surface = palette();
-    surface.setColor(QPalette::Window, QColor(0, 0, 0));
-    setPalette(surface);
+    // A translucent tool window composites against the empty X11 root on
+    // Wayland, so Edge and Chrome disappear. Paint the captured frame opaquely.
+    configureOpaqueSelectionSurface(this, m_canvas);
+    if (QGuiApplication::platformName() != QLatin1String("wayland"))
+        return;
     if (screen() != nullptr) {
         setGeometry(screen()->geometry());
     }
@@ -913,24 +948,11 @@ void ScreenshotOverlayWindow::initializeScreenshotSurface() {
 
 #ifdef Q_OS_LINUX
     // GNOME does not put a translucent surface over the desktop. The captured
-    // frame is painted into an opaque fullscreen window instead.
-    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
-        setAttribute(Qt::WA_TranslucentBackground, false);
-        setAttribute(Qt::WA_NoSystemBackground, false);
-        setAttribute(Qt::WA_ShowWithoutActivating, false);
-        setAttribute(Qt::WA_TransparentForMouseEvents, false);
-        setAutoFillBackground(true);
-        QPalette surface = palette();
-        surface.setColor(QPalette::Window, QColor(0, 0, 0));
-        setPalette(surface);
-        if (m_canvas != nullptr) {
-            m_canvas->setAttribute(Qt::WA_OpaquePaintEvent, true);
-            m_canvas->setAttribute(Qt::WA_TranslucentBackground, false);
-            m_canvas->setAttribute(Qt::WA_NoSystemBackground, false);
-            m_canvas->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-            m_canvas->setAttribute(Qt::WA_NoMousePropagation, true);
-            m_canvas->setAutoFillBackground(true);
-        }
+    // frame is painted into an opaque fullscreen window instead. The same
+    // opaque frame is required under XWayland: a translucent window shows the
+    // empty X11 root where Edge and Chrome are.
+    if (linuxWaylandDesktop()) {
+        configureOpaqueSelectionSurface(this, m_canvas);
         return;
     }
 #endif

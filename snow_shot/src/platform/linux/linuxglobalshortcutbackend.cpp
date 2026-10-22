@@ -9,10 +9,17 @@
 #include <QDBusObjectPath>
 #include <QDBusReply>
 #include <QEventLoop>
+#include <QDir>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QKeySequence>
 #include <QSocketNotifier>
 #include <QTimer>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QSet>
+
+#include <algorithm>
 #include <QVariantMap>
 
 #include <X11/Xlib.h>
@@ -207,18 +214,14 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         if (!parseShortcut(binding, &combination))
             return {false, GlobalShortcutFailureReason::InvalidShortcut, 0};
         m_bindings.insert(registrationId, combination);
-        const bool portal = bindPortal();
-        const bool x11 = grabX11(registrationId, combination);
         if (qEnvironmentVariableIsSet("WAYLAND_DISPLAY")) {
-            // An XWayland grab does not receive compositor keys. On Wayland the
-            // portal binding is the shortcut that actually fires.
-            if (!portal) {
-                unregisterShortcut(registrationId);
-                return {false, GlobalShortcutFailureReason::SystemError, 0};
-            }
+            // GNOME shows a permission dialog for every portal BindShortcuts call.
+            // Keep the binding here and publish the whole set once from
+            // flushRegistrations(), through the same media-key path Snipaste uses.
             return {true, GlobalShortcutFailureReason::None, 0};
         }
-        if (!portal && !x11) {
+        const bool x11 = grabX11(registrationId, combination);
+        if (!x11) {
             m_bindings.remove(registrationId);
             return {false, GlobalShortcutFailureReason::SystemError, 0};
         }
@@ -235,7 +238,12 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
             m_grabs.erase(grabbed);
         }
         m_bindings.remove(registrationId);
-        bindPortal();
+    }
+
+    void flushRegistrations() override {
+        if (!qEnvironmentVariableIsSet("WAYLAND_DISPLAY"))
+            return;
+        syncGnomeMediaKeys();
     }
 
   private:
@@ -282,6 +290,111 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         XSync(m_display, False);
         XSetErrorHandler(ignoreXError);
         Q_UNUSED(previous);
+    }
+
+    void syncGnomeMediaKeys() {
+        QStringList kept;
+        QSet<QString> takenBindings;
+        QProcess current;
+        current.start(QStringLiteral("gsettings"),
+                      {QStringLiteral("get"),
+                       QStringLiteral("org.gnome.settings-daemon.plugins.media-keys"),
+                       QStringLiteral("custom-keybindings")});
+        if (current.waitForFinished(1500) && current.exitCode() == 0) {
+            const QString text = QString::fromUtf8(current.readAllStandardOutput());
+            static const QRegularExpression pathPattern(QStringLiteral("'([^']+)'"));
+            auto match = pathPattern.globalMatch(text);
+            while (match.hasNext()) {
+                const QString path = match.next().captured(1);
+                if (path.contains(QStringLiteral("snow-shot-")))
+                    continue;
+                kept.push_back(path);
+                QProcess binding;
+                binding.start(QStringLiteral("gsettings"),
+                              {QStringLiteral("get"),
+                               QStringLiteral(
+                                   "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:%1")
+                                   .arg(path),
+                               QStringLiteral("binding")});
+                if (binding.waitForFinished(1500) && binding.exitCode() == 0) {
+                    QString value = QString::fromUtf8(binding.readAllStandardOutput()).trimmed();
+                    if (value.size() >= 2 && value.front() == u'\'' && value.back() == u'\'')
+                        value = value.mid(1, value.size() - 2);
+                    if (!value.isEmpty())
+                        takenBindings.insert(value);
+                }
+            }
+        }
+
+        const QString executable = QCoreApplication::applicationFilePath();
+        QList<QKeyCombination> combinations = m_bindings.values();
+        std::sort(combinations.begin(), combinations.end(),
+                  [](const QKeyCombination& left, const QKeyCombination& right) {
+                      return QKeySequence(left).toString(QKeySequence::PortableText) <
+                             QKeySequence(right).toString(QKeySequence::PortableText);
+                  });
+        struct GnomeKey {
+            QString path;
+            QString name;
+            QString command;
+            QString binding;
+        };
+        QList<GnomeKey> keys;
+        QStringList owned;
+        int index = 0;
+        QStringList fingerprintParts = kept;
+        for (const QKeyCombination& combination : combinations) {
+            const QString binding = gtkTrigger(combination);
+            if (takenBindings.contains(binding))
+                continue;
+            const QString slot = QStringLiteral("snow-shot-%1").arg(index++);
+            const QString path =
+                QStringLiteral("/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/%1/")
+                    .arg(slot);
+            const QString portable =
+                QKeySequence(combination).toString(QKeySequence::PortableText);
+            const QString helper =
+                QFileInfo(executable).dir().filePath(QStringLiteral("snow-shot-shortcut"));
+            // The full debug binary takes the better part of a second to start.
+            // The key binding only needs to poke the running instance.
+            const QString command =
+                QFileInfo::exists(helper)
+                    ? QStringLiteral("%1 --shortcut %2").arg(helper, portable)
+                    : QStringLiteral("%1 --shortcut %2").arg(executable, portable);
+            keys.push_back(GnomeKey{path, QStringLiteral("Snow Shot %1").arg(portable), command,
+                                    binding});
+            owned.push_back(path);
+            fingerprintParts.push_back(path + command + binding);
+        }
+        const QString fingerprint = fingerprintParts.join(QStringLiteral("\n"));
+        if (fingerprint == m_publishedGnomeKeys)
+            return;
+        for (const GnomeKey& key : keys) {
+            writeDconf(key.path + QStringLiteral("name"), key.name);
+            writeDconf(key.path + QStringLiteral("command"), key.command);
+            writeDconf(key.path + QStringLiteral("binding"), key.binding);
+        }
+        m_publishedGnomeKeys = fingerprint;
+
+        QStringList all = kept;
+        all.append(owned);
+        QStringList quoted;
+        for (const QString& path : all)
+            quoted.push_back(QStringLiteral("'%1'").arg(path));
+        QProcess write;
+        write.start(QStringLiteral("dconf"),
+                    {QStringLiteral("write"),
+                     QStringLiteral("/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"),
+                     QStringLiteral("[%1]").arg(quoted.join(QStringLiteral(", ")))});
+        write.waitForFinished(1500);
+    }
+
+    static void writeDconf(const QString& key, const QString& value) {
+        QProcess process;
+        process.start(QStringLiteral("dconf"),
+                      {QStringLiteral("write"), key,
+                       QStringLiteral("'%1'").arg(value)});
+        process.waitForFinished(1500);
     }
 
     bool bindPortal() {
@@ -424,6 +537,7 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
     Display* m_display = nullptr;
     QSocketNotifier* m_notifier = nullptr;
     QString m_session;
+    QString m_publishedGnomeKeys;
 };
 
 } // namespace

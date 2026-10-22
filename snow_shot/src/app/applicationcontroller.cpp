@@ -2277,6 +2277,14 @@ void ApplicationController::handleLaunchRequest(const QStringList& arguments) {
         return;
     }
 #endif
+    if (const int shortcutIndex = arguments.indexOf(QStringLiteral("--shortcut"));
+        shortcutIndex >= 0) {
+        const QString shortcut = shortcutIndex + 1 < arguments.size()
+                                     ? arguments.at(shortcutIndex + 1)
+                                     : QString();
+        static_cast<void>(m_impl->globalShortcutManager.activatePortableShortcut(shortcut));
+        return;
+    }
     if (storage::ApplicationStorage::instance().directoryChanging())
         return;
     if (arguments.contains(QStringLiteral("--autostart"))) {

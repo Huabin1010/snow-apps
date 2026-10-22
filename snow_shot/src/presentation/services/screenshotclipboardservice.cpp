@@ -82,7 +82,7 @@ class PngClipboardMimeData final : public QMimeData {
 };
 
 bool publishWaylandPngClipboard(const QByteArray& png) {
-    if (png.isEmpty() || QGuiApplication::platformName() != QLatin1String("wayland")) {
+    if (png.isEmpty() || qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")) {
         return false;
     }
     // Qt's offer is tied to this process's window. Hiding the fullscreen mask
