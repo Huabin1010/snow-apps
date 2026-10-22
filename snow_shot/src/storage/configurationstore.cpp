@@ -240,6 +240,18 @@ MaterializedConfiguration materializeConfiguration(const QMap<QString, QJsonValu
                 migratedDestroyShortcut = true;
             }
         }
+        bool migratedOcrCopyShortcut = false;
+        if (entry.key == QStringLiteral("global_shortcuts/screenshot_ocr_copy") &&
+            mutateDocument && schemaVersion < 5) {
+            // The previous default was unset. Fill it once so existing installs
+            // gain Ctrl+Shift+C without replacing a shortcut the user chose.
+            const auto previousDefault = ConfigurationSchema::normalize(entry.key, QJsonArray{});
+            const auto stored = ConfigurationSchema::normalize(entry.key, raw);
+            if (stored.valid && stored.value == previousDefault.value) {
+                raw = entry.defaultValue;
+                migratedOcrCopyShortcut = true;
+            }
+        }
 #if SNOW_SHOT_ENABLE_API_CONFIGURATION
         if (entry.key == kCustomModelsKey ||
             entry.key == QStringLiteral("api_configuration/text_translation")) {
@@ -276,9 +288,11 @@ MaterializedConfiguration materializeConfiguration(const QMap<QString, QJsonValu
         result.values.insert(entry.key, normalized.value);
         const bool migratedLegacyValue = !overlay.contains(entry.key);
         if (mutateDocument &&
-            (replaceAll || normalized.changed || migratedDestroyShortcut || migratedLegacyValue)) {
+            (replaceAll || normalized.changed || migratedDestroyShortcut ||
+             migratedOcrCopyShortcut || migratedLegacyValue)) {
             insertPath(&result.document, entry.key, normalized.value);
-            if ((normalized.changed || migratedDestroyShortcut || migratedLegacyValue) &&
+            if ((normalized.changed || migratedDestroyShortcut || migratedOcrCopyShortcut ||
+                 migratedLegacyValue) &&
                 !replaceAll) {
                 result.dirty = true;
             }

@@ -249,7 +249,7 @@ const QVector<ConfigurationSchemaEntry> kRawEntries = {
     {QStringLiteral("api_configuration/custom_models"), QJsonArray(),
      ConfigurationValueKind::Structured},
 #endif
-    {QStringLiteral("storage/schema_version"), 4, ConfigurationValueKind::Integer,
+    {QStringLiteral("storage/schema_version"), 5, ConfigurationValueKind::Integer,
      ConfigurationIntegerRange{4, 4, 1}},
     {QStringLiteral("interface/theme_mode"),
      QStringLiteral("system"),
@@ -461,7 +461,7 @@ const QVector<ConfigurationSchemaEntry> kRawEntries = {
      {},
      2},
     {QStringLiteral("global_shortcuts/screenshot_ocr_copy"),
-     QJsonArray(),
+     QJsonArray{QStringLiteral("Ctrl+Shift+C")},
      ConfigurationValueKind::StringList,
      std::nullopt,
      {},

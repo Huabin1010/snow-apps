@@ -209,6 +209,15 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         m_bindings.insert(registrationId, combination);
         const bool portal = bindPortal();
         const bool x11 = grabX11(registrationId, combination);
+        if (qEnvironmentVariableIsSet("WAYLAND_DISPLAY")) {
+            // An XWayland grab does not receive compositor keys. On Wayland the
+            // portal binding is the shortcut that actually fires.
+            if (!portal) {
+                unregisterShortcut(registrationId);
+                return {false, GlobalShortcutFailureReason::SystemError, 0};
+            }
+            return {true, GlobalShortcutFailureReason::None, 0};
+        }
         if (!portal && !x11) {
             m_bindings.remove(registrationId);
             return {false, GlobalShortcutFailureReason::SystemError, 0};
@@ -279,9 +288,29 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         if (!qEnvironmentVariableIsSet("WAYLAND_DISPLAY"))
             return false;
         auto bus = QDBusConnection::sessionBus();
-        if (!m_session.isEmpty() || !createPortalSession(bus))
-            return !m_session.isEmpty() && sendPortalBindings(bus);
+        // BindShortcuts can be called only once per session. Close the previous
+        // session and publish the full list, otherwise later shortcuts such as
+        // Ctrl+Shift+C never reach the compositor.
+        closePortalSession(bus);
+        if (m_bindings.isEmpty())
+            return true;
+        if (!createPortalSession(bus))
+            return false;
         return sendPortalBindings(bus);
+    }
+
+    void closePortalSession(QDBusConnection& bus) {
+        if (m_session.isEmpty())
+            return;
+        bus.disconnect(QStringLiteral("org.freedesktop.portal.Desktop"), m_session,
+                       QStringLiteral("org.freedesktop.portal.GlobalShortcuts"),
+                       QStringLiteral("Activated"), this,
+                       SLOT(portalActivated(QDBusObjectPath,QString,qulonglong,QVariantMap)));
+        QDBusMessage message = QDBusMessage::createMethodCall(
+            QStringLiteral("org.freedesktop.portal.Desktop"), m_session,
+            QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Close"));
+        bus.call(message);
+        m_session.clear();
     }
 
     bool createPortalSession(QDBusConnection& bus) {
@@ -290,10 +319,16 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         QVariantMap options;
         options.insert(QStringLiteral("handle_token"), handle);
         options.insert(QStringLiteral("session_handle_token"), session);
-        const QString request = callPortal(bus, QStringLiteral("CreateSession"), {options});
-        if (request.isEmpty())
-            return false;
-        const auto response = waitForPortal(bus, request);
+        PortalWaiter waiter;
+        const QString request = portalRequestPath(bus, handle);
+        listenForPortal(bus, request, waiter);
+        QDBusMessage message = QDBusMessage::createMethodCall(
+            QStringLiteral("org.freedesktop.portal.Desktop"),
+            QStringLiteral("/org/freedesktop/portal/desktop"),
+            QStringLiteral("org.freedesktop.portal.GlobalShortcuts"),
+            QStringLiteral("CreateSession"));
+        message << options;
+        const PortalResponse response = finishPortalCall(bus, request, waiter, message);
         if (response.code != 0)
             return false;
         const QString unique = bus.baseService().mid(1).replace(u'.', u'_');
@@ -328,6 +363,9 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
         const QString handle = portalToken("b");
         QVariantMap options;
         options.insert(QStringLiteral("handle_token"), handle);
+        PortalWaiter waiter;
+        const QString request = portalRequestPath(bus, handle);
+        listenForPortal(bus, request, waiter);
         QDBusMessage message = QDBusMessage::createMethodCall(
             QStringLiteral("org.freedesktop.portal.Desktop"),
             QStringLiteral("/org/freedesktop/portal/desktop"),
@@ -335,44 +373,39 @@ class LinuxGlobalShortcutBackend final : public QObject, public GlobalShortcutBa
             QStringLiteral("BindShortcuts"));
         message << QVariant::fromValue(QDBusObjectPath(m_session)) << QVariant::fromValue(shortcuts)
                 << QString() << options;
-        const QDBusMessage reply = bus.call(message);
-        if (reply.type() == QDBusMessage::ErrorMessage)
-            return false;
-        const QString request = reply.arguments().isEmpty()
-                                    ? QString()
-                                    : reply.arguments().constFirst().value<QDBusObjectPath>().path();
-        return !request.isEmpty() && waitForPortal(bus, request).code == 0;
+        return finishPortalCall(bus, request, waiter, message).code == 0;
     }
 
-    QString callPortal(QDBusConnection& bus, const QString& method, const QVariantMap& options) {
-        QDBusMessage message = QDBusMessage::createMethodCall(
-            QStringLiteral("org.freedesktop.portal.Desktop"),
-            QStringLiteral("/org/freedesktop/portal/desktop"),
-            QStringLiteral("org.freedesktop.portal.GlobalShortcuts"), method);
-        message << options;
-        const QDBusMessage reply = bus.call(message);
-        if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty())
-            return {};
-        return reply.arguments().constFirst().value<QDBusObjectPath>().path();
+    QString portalRequestPath(const QDBusConnection& bus, const QString& token) const {
+        const QString sender = bus.baseService().mid(1).replace(u'.', u'_');
+        return QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2").arg(sender, token);
     }
 
-    PortalResponse waitForPortal(QDBusConnection& bus, const QString& request) {
-        PortalWaiter waiter;
+    void listenForPortal(QDBusConnection& bus, const QString& request, PortalWaiter& waiter) {
         bus.connect(QStringLiteral("org.freedesktop.portal.Desktop"), request,
                     QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
                     &waiter, SLOT(response(uint,QVariantMap)));
-        QEventLoop loop;
-        QTimer timer;
-        timer.setSingleShot(true);
-        connect(&waiter, &PortalWaiter::finished, &loop, &QEventLoop::quit);
-        connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-        timer.start(2000);
-        if (waiter.value.code == 2)
-            loop.exec();
+    }
+
+    PortalResponse finishPortalCall(QDBusConnection& bus, const QString& request,
+                                    PortalWaiter& waiter, const QDBusMessage& message) {
+        const QDBusMessage reply = bus.call(message);
+        PortalResponse response;
+        if (reply.type() != QDBusMessage::ErrorMessage) {
+            QEventLoop loop;
+            QTimer timer;
+            timer.setSingleShot(true);
+            connect(&waiter, &PortalWaiter::finished, &loop, &QEventLoop::quit);
+            connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+            timer.start(2000);
+            if (waiter.value.code == 2)
+                loop.exec();
+            response = waiter.value;
+        }
         bus.disconnect(QStringLiteral("org.freedesktop.portal.Desktop"), request,
-                       QStringLiteral("org.freedesktop.portal.Request"),
-                       QStringLiteral("Response"), &waiter, SLOT(response(uint,QVariantMap)));
-        return waiter.value;
+                       QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
+                       &waiter, SLOT(response(uint,QVariantMap)));
+        return response;
     }
 
   private slots:

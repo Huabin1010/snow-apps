@@ -346,7 +346,8 @@ void autoSaveAfterExecutionSettingsMigrateAndPersist() {
             {
                 storage::ConfigurationStore store(path, true, true, 60000);
                 require(store.value(key) == expected && !store.snapshot().contains(legacyKey) &&
-                            store.value(QStringLiteral("storage/schema_version")).toInt() == 4 &&
+                            store.value(QStringLiteral("storage/schema_version")).toInt() ==
+                    storage::ConfigurationSchema::currentVersion() &&
                             store.flushNow().success,
                         "legacy booleans must retain their original five auto-save scenarios");
                 const QJsonObject screenshot =
@@ -687,6 +688,8 @@ void settingsSchemaDefaultsAndValidationAreComplete() {
                 structuredShortcuts(QJsonArray{QStringLiteral("F1")}) &&
             defaultValue("global_shortcuts/screenshot_copy").toArray() ==
                 structuredShortcuts(QJsonArray{QStringLiteral("Ctrl+F1")}) &&
+            defaultValue("global_shortcuts/screenshot_ocr_copy").toArray() ==
+                structuredShortcuts(QJsonArray{QStringLiteral("Ctrl+Shift+C")}) &&
             defaultValue("global_shortcuts/pin_clipboard_content").toArray() ==
                 structuredShortcuts(QJsonArray{QStringLiteral("F3")}) &&
 #endif

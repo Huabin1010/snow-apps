@@ -219,7 +219,11 @@ impl LinuxCapturer {
             ));
         }
         let mut rect = target_rect(target)?;
-        if rect.window.is_none() && !options.excluded_windows.is_empty() {
+        // Wayland clients such as Edge and Chrome are not X11 windows. Capturing
+        // the X11 window under the cursor misses their pixels. Mutter's area
+        // capture composites those windows into the screenshot.
+        let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
+        if !wayland && rect.window.is_none() && !options.excluded_windows.is_empty() {
             let center_x = rect.x.saturating_add(rect.width as i32 / 2);
             let center_y = rect.y.saturating_add(rect.height as i32 / 2);
             if let Ok(Some(window)) =
