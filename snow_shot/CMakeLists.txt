@@ -4646,6 +4646,24 @@ if(SNOW_SHOT_BUILD_TESTS)
         set_tests_properties(snow-shot-linux-machine-capability-tests PROPERTIES
             LABELS "unit" TIMEOUT 30)
 
+        add_executable(snow-shot-linux-recording-capture-backend-tests
+            tests/linux_recording_capture_backend_tests.cpp)
+        target_include_directories(snow-shot-linux-recording-capture-backend-tests PRIVATE
+            "${SNOW_SHOT_CAPTURE_CRATES_DIR}/crates/snow-capture-c/include"
+            "${SNOW_SHOT_CAPTURE_CRATES_DIR}/crates/snow-recording-c/include")
+        target_link_libraries(snow-shot-linux-recording-capture-backend-tests PRIVATE
+            snow_recording_c snow_capture_c)
+        add_test(NAME snow-shot-linux-recording-capture-backend-tests
+            COMMAND snow-shot-linux-recording-capture-backend-tests)
+        set_tests_properties(snow-shot-linux-recording-capture-backend-tests PROPERTIES
+            LABELS "unit" TIMEOUT 60)
+        add_test(NAME snow-shot-linux-recording-probe
+            COMMAND snow_shot --recording-linux-probe
+                ${CMAKE_CURRENT_BINARY_DIR}/linux-recording-probe.mp4)
+        set_tests_properties(snow-shot-linux-recording-probe PROPERTIES
+            LABELS "interactive;e2e;linux" RUN_SERIAL TRUE TIMEOUT 120
+            ENVIRONMENT "QT_QPA_PLATFORM=xcb")
+
         add_executable(snow-shot-linux-autostart-tests
             tests/linux_autostart_tests.cpp
             src/platform/linux/autostartregistration.cpp

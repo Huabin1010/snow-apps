@@ -17,6 +17,7 @@
 #include "recordingwebcamcontrol.h"
 #include "recordingregioninputrouter.h"
 #include <QApplication>
+#include <QGuiApplication>
 #ifdef Q_OS_MACOS
 #include "snow_shot/platform/screenshotnative.h"
 #import <AppKit/AppKit.h>
@@ -103,11 +104,22 @@ QRect nativeClientGeometry(const QWidget& window) {
 } // namespace
 
 ScreenRecordingAreaWindow::ScreenRecordingAreaWindow(QWidget* parent)
-    : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
-                          Qt::NoDropShadowWindowHint),
+    : QWidget(parent),
       m_canvasRuntime(std::make_unique<SnowCanvasRuntime>(
           SnowCanvasRuntimeConfig{snow_shot::presentation::screenshotCanvasToolStyleDefaults()})),
       m_canvas(new SnowCanvasWidget(*m_canvasRuntime, this)) {
+#if defined(Q_OS_LINUX)
+    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
+        setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+                       Qt::NoDropShadowWindowHint);
+    } else {
+        setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint |
+                       Qt::X11BypassWindowManagerHint | Qt::NoDropShadowWindowHint);
+    }
+#else
+    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+                   Qt::NoDropShadowWindowHint);
+#endif
     snow_shot::presentation::configureCanvasCrosshairCursor(*m_canvas);
     snow_shot::presentation::bindCanvasTextEditingPreferences(*m_canvas);
 #ifdef Q_OS_MACOS

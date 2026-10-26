@@ -80,7 +80,7 @@ constexpr int kDurationTickMilliseconds = 100;
 constexpr int kCountdownTickMilliseconds = 16;
 
 uint32_t recordingCaptureBackendPreference(const snow_shot::storage::RecordingSettings& settings) {
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
     Q_UNUSED(settings)
     return SNOW_CAPTURE_BACKEND_AUTO;
 #else
@@ -1124,7 +1124,7 @@ struct ScreenRecordingController::Impl {
             const snow_shot::storage::RecordingSettings settings;
             sessionOutputSettings =
                 directRecordingSettings(outputFormat, captureRegion.size(), automationOptions);
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
             sessionCaptureBackendPreference = QStringLiteral("auto");
 #else
             sessionCaptureBackendPreference = settings.apiMode();
@@ -2509,7 +2509,7 @@ struct ScreenRecordingController::Impl {
     bool startScheduled = false;
     quint64 startGeneration = 0;
     snow_shot::presentation::WindowCaptureExclusion captureExclusion{
-#if defined(Q_OS_WIN) || defined(_WIN32) || defined(Q_OS_MACOS)
+#if defined(Q_OS_WIN) || defined(_WIN32) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
         snow_shot::platform::setWindowExcludedFromCapture
 #endif
     };

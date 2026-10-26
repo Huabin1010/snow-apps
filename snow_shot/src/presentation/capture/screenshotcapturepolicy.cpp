@@ -28,6 +28,9 @@ std::uint8_t nativeBackendForNormalScreenshot(ScreenshotApiMode mode) noexcept {
 #ifdef Q_OS_MACOS
     Q_UNUSED(mode);
     return SNOW_CAPTURE_BACKEND_SCREEN_CAPTURE_KIT;
+#elif defined(Q_OS_LINUX)
+    Q_UNUSED(mode);
+    return SNOW_CAPTURE_BACKEND_AUTO;
 #else
     switch (mode) {
     case ScreenshotApiMode::Dxgi:

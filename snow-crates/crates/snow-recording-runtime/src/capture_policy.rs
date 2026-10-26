@@ -23,9 +23,17 @@ pub(crate) fn recording_capture_system(
     #[cfg(not(windows))]
     let builder = {
         let _ = path;
-        builder.with_backend_kind(preferred)
+        builder.with_backend_kind(recording_capture_backend_kind(preferred))
     };
     builder.build()
+}
+
+#[cfg(not(windows))]
+fn recording_capture_backend_kind(preferred: CaptureBackendKind) -> CaptureBackendKind {
+    match preferred {
+        CaptureBackendKind::Auto | CaptureBackendKind::ScreenCaptureKit => preferred,
+        _ => CaptureBackendKind::Auto,
+    }
 }
 
 #[cfg(windows)]
@@ -88,6 +96,24 @@ pub(crate) fn try_recording_gpu_capture<T>(
     match last_error {
         Some(error) => Err(error),
         None => Ok(None),
+    }
+}
+
+#[cfg(all(test, not(windows)))]
+mod non_windows_tests {
+    use super::*;
+
+    #[test]
+    fn recording_capture_ignores_windows_only_backend_preferences() {
+        use CaptureBackendKind::{Auto, DxgiDuplication as Dxgi, Gdi, WindowsGraphicsCapture as Wgc};
+        for preferred in [Dxgi, Wgc, Gdi] {
+            assert_eq!(
+                recording_capture_system(RecordingCapturePath::Direct, preferred)
+                    .unwrap()
+                    .backend_kind(),
+                Auto
+            );
+        }
     }
 }
 

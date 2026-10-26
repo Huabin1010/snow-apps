@@ -60,14 +60,17 @@
 #include "snow_draw_engine_qt/snow_canvas_runtime.h"
 int runMcpApplicationLifecycleTests(int argc, char** argv);
 #endif
-#ifdef Q_OS_MACOS
-#include "snow_shot/platform/macos/loginitemservice.h"
-#include "snow_shot/platform/macos/rastercolorspace.h"
+#if defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
 #include <QScopeGuard>
 #include <future>
 #include <thread>
+#include <chrono>
 #include <QTimer>
 #include <QScreen>
+#endif
+#ifdef Q_OS_MACOS
+#include "snow_shot/platform/macos/loginitemservice.h"
+#include "snow_shot/platform/macos/rastercolorspace.h"
 #endif
 
 #ifdef Q_OS_WIN
@@ -350,6 +353,76 @@ int main(int argc, char* argv[]) {
                 return 6;
             }
             qInfo("macos recording probe: logical=321x239 output=%ux%u", width, height);
+            return 0;
+        });
+        QTimer poll;
+        QObject::connect(&poll, &QTimer::timeout, &probe, [&] {
+            if (result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+                probe.exit(result.get());
+        });
+        poll.start(20);
+        return probe.exec();
+    }
+#endif
+#if defined(Q_OS_LINUX)
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == u"--recording-linux-probe") {
+        QApplication probe(argc, argv);
+        adqt::widgets::initializePlatformCompatibility(probe);
+        const QStringList arguments = probe.arguments();
+        const QByteArray path = QFileInfo(arguments[2]).absoluteFilePath().toUtf8();
+        const QRect screen = probe.primaryScreen() ? probe.primaryScreen()->geometry()
+                                                   : QRect(0, 0, 1920, 1080);
+        const QPoint origin = screen.topLeft() + QPoint(40, 40);
+        auto result = std::async(std::launch::async, [path, arguments, origin] {
+            snow_shot::platform::applyApplicationQoSToCurrentThread();
+            SnowCaptureDirectRecordingConfig config{};
+            config.version = SNOW_CAPTURE_DIRECT_RECORDING_CONFIG_VERSION;
+            config.struct_size = sizeof(config);
+            config.x = origin.x();
+            config.y = origin.y();
+            config.width = 321;
+            config.height = 239;
+            config.capture_backend = SNOW_CAPTURE_BACKEND_DXGI;
+            config.output_file_utf8 = path.constData();
+            config.output_format = SNOW_RECORDING_OUTPUT_FORMAT_MP4;
+            config.capture_fps = 30;
+            config.output_fps = 15;
+            config.maximum_width = 1920;
+            config.maximum_height = 1080;
+            config.quality = 80;
+            config.codec = SNOW_CAPTURE_VIDEO_CODEC_H264;
+            config.preset = SNOW_CAPTURE_VIDEO_ENCODING_PRESET_VERYFAST;
+            config.encoder_preference = SNOW_CAPTURE_ENCODER_PREFERENCE_SOFTWARE;
+            config.enable_system_audio =
+                static_cast<uint8_t>(arguments.contains(u"system-audio"));
+            config.enable_microphone = static_cast<uint8_t>(arguments.contains(u"microphone"));
+            config.show_cursor = 1;
+            config.mouse_highlight_radius = 41;
+            config.mouse_trail_duration_ms = 500;
+            config.keyboard_size = 64;
+            SnowRecordingSession* session = nullptr;
+            if (snow_recording_session_create_direct(&config, &session) != SNOW_RECORDING_RESULT_OK) {
+                qWarning("%s", snow_recording_last_error_message());
+                return 2;
+            }
+            const auto destroy =
+                qScopeGuard([session] { snow_recording_session_destroy(session); });
+            if (!snow_recording_session_start(session)) {
+                qWarning("%s", snow_recording_last_error_message());
+                return 3;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+            if (snow_recording_session_stop(session) != SNOW_RECORDING_RESULT_OK) {
+                qWarning("%s", snow_recording_last_error_message());
+                return 4;
+            }
+            const QFileInfo output(QString::fromUtf8(path));
+            if (!output.exists() || output.size() < 1024) {
+                qWarning("linux recording probe: output file is missing or too small");
+                return 5;
+            }
+            qInfo("linux recording probe: wrote %lld bytes to %s",
+                  static_cast<long long>(output.size()), path.constData());
             return 0;
         });
         QTimer poll;

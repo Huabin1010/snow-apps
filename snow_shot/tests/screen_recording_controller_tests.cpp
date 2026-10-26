@@ -2230,7 +2230,7 @@ void recordingApiModeWiring() {
             const int beforeDeferred = deferredCreates;
             controller.startRecording();
             waitForRecording(controller);
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
             const uint32_t expected = SNOW_CAPTURE_BACKEND_AUTO;
 #else
             const uint32_t expected = mode == QStringLiteral("wgc")   ? SNOW_CAPTURE_BACKEND_WGC
@@ -2295,7 +2295,7 @@ void recordingStartupFailureAllowsRetry() {
             require(settings.setApiMode(QStringLiteral("gdi")), "change preference before retry");
             startButton->click();
             waitForRecording(controller);
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
             const uint32_t expected = SNOW_CAPTURE_BACKEND_AUTO;
 #else
             const uint32_t expected = SNOW_CAPTURE_BACKEND_GDI;
