@@ -7,6 +7,7 @@
 #include "snow_shot/storage/applicationstorage.h"
 #include "snow_shot/storage/settingsadapters.h"
 
+#include <QElapsedTimer>
 #include <QHash>
 #include <QJsonDocument>
 #include <QSet>
@@ -621,9 +622,18 @@ class GlobalShortcutManager::Impl {
         const QString wanted = portableText.trimmed();
         if (wanted.isEmpty())
             return false;
+        // GNOME repeats a media key while it is held, and each repeat launches
+        // the shortcut helper. One physical press should start one capture.
+        if (m_lastActivation.isValid() &&
+            m_lastActivationText.compare(wanted, Qt::CaseInsensitive) == 0 &&
+            m_lastActivation.elapsed() < 1200) {
+            return true;
+        }
         for (GlobalShortcutAction action : ALL_ACTIONS) {
             for (const auto& binding : m_shortcuts[actionIndex(action)]) {
                 if (binding.portableText.compare(wanted, Qt::CaseInsensitive) == 0) {
+                    m_lastActivationText = wanted;
+                    m_lastActivation.start();
                     emit q.activated(action);
                     return true;
                 }
@@ -647,6 +657,8 @@ class GlobalShortcutManager::Impl {
     bool m_globalHotkeysEnabled = true;
     bool m_globalCanvasActive = false;
     bool m_fullscreenSuppressionEnabled = false;
+    mutable QElapsedTimer m_lastActivation;
+    mutable QString m_lastActivationText;
     bool m_focusedFullscreen = false;
 };
 

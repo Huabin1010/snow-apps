@@ -309,6 +309,7 @@ struct ScreenshotController::Impl final : public ScreenshotToolbarCommandSink,
     [[nodiscard]] ScreenshotSelectionRestoreTarget selectionRestoreTarget() const;
     [[nodiscard]] bool selectPreviousSelection(bool previous = true);
     void handleAutomaticTextRecognitionAction(bool available);
+    [[nodiscard]] bool screenshotOverlayVisible() const;
     [[nodiscard]] bool canBeginCapture() const;
     [[nodiscard]] ScreenshotOverlayWindow* overlayUnderCursor() const;
     [[nodiscard]] ScreenshotOverlayWindow* overlayForWidget(QWidget* widget) const;
@@ -5872,8 +5873,18 @@ void ScreenshotController::Impl::resetPendingCaptureRequest() {
     m_ocrTranslateAfterRecognition = false;
 }
 
+bool ScreenshotController::Impl::screenshotOverlayVisible() const {
+    bool visible = false;
+    m_displaySession.forEachOverlay([&](qsizetype, ScreenshotOverlayWindow* overlay) {
+        visible = visible || (overlay != nullptr && overlay->isVisible());
+    });
+    return visible;
+}
+
 bool ScreenshotController::Impl::canBeginCapture() const {
-    if ((m_captureWorkflow && m_captureWorkflow->captureSuspended()) ||
+    // A second F1 must not start another capture while the mask is still up,
+    // even if the session state has already returned to idle.
+    if (screenshotOverlayVisible() || (m_captureWorkflow && m_captureWorkflow->captureSuspended()) ||
         m_captureState.captureInProgress || !m_interaction.inactive() ||
         (m_captureState.sessionState != ScreenshotSessionState::IdleCold &&
          m_captureState.sessionState != ScreenshotSessionState::IdlePrepared)) {
@@ -6385,7 +6396,7 @@ bool ScreenshotController::handleActiveScreenshotShortcut(
     snow_shot::presentation::GlobalShortcutAction action) {
     const auto state = m_impl->m_captureState.sessionState;
     if (state == ScreenshotSessionState::IdleCold || state == ScreenshotSessionState::IdlePrepared)
-        return false;
+        return m_impl->screenshotOverlayVisible();
     if (action == snow_shot::presentation::GlobalShortcutAction::ScreenRecordCopy &&
         m_impl->m_screenRecordingController != nullptr &&
         m_impl->m_screenRecordingController->isOpen())

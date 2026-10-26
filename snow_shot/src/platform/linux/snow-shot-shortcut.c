@@ -8,11 +8,68 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 #include <openssl/sha.h>
+
+static int suppressed_repeat(int argc, char **argv) {
+    char path[128];
+    snprintf(path, sizeof(path), "/tmp/snow-shot-shortcut-%d.lock", (int)getuid());
+    int fd = open(path, O_CREAT | O_RDWR, 0600);
+    if (fd < 0)
+        return 0;
+    if (flock(fd, LOCK_EX) != 0) {
+        close(fd);
+        return 0;
+    }
+    char current[512];
+    size_t used = 0;
+    current[0] = '\0';
+    for (int i = 1; i < argc && used + 1 < sizeof(current); ++i) {
+        if (i > 1)
+            current[used++] = ' ';
+        const size_t length = strlen(argv[i]);
+        const size_t room = sizeof(current) - used - 1;
+        const size_t copy = length < room ? length : room;
+        memcpy(current + used, argv[i], copy);
+        used += copy;
+        current[used] = '\0';
+    }
+    char previous[640];
+    const ssize_t n = pread(fd, previous, sizeof(previous) - 1, 0);
+    if (n >= 0)
+        previous[n] = '\0';
+    else
+        previous[0] = '\0';
+    long long previous_ms = 0;
+    char previous_args[512];
+    previous_args[0] = '\0';
+    sscanf(previous, "%lld %511[^\n]", &previous_ms, previous_args);
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    const long long ms = (long long)now.tv_sec * 1000LL + now.tv_usec / 1000;
+    const int suppress =
+        previous_ms > 0 && ms >= previous_ms && ms - previous_ms < 1200 &&
+        strcmp(previous_args, current) == 0;
+    if (!suppress) {
+        char line[640];
+        const int length = snprintf(line, sizeof(line), "%lld %s\n", ms, current);
+        if (length > 0 && ftruncate(fd, 0) == 0) {
+            if (lseek(fd, 0, SEEK_SET) >= 0) {
+                const ssize_t written = write(fd, line, (size_t)length);
+                (void)written;
+            }
+        }
+    }
+    flock(fd, LOCK_UN);
+    close(fd);
+    return suppress;
+}
 
 static void exec_fallback(const char *binary, int argc, char **argv) {
     char **args = calloc((size_t)argc + 1, sizeof(char *));
@@ -64,6 +121,8 @@ static int append_json_string(char *out, size_t cap, size_t *used, const char *t
 int main(int argc, char **argv) {
     if (argc < 2)
         return 2;
+    if (suppressed_repeat(argc, argv))
+        return 0;
 
     char self[4096];
     char binary[4096];
