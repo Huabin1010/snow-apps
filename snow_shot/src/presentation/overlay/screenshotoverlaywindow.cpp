@@ -111,9 +111,10 @@ ScreenshotOverlayWindow::ScreenshotOverlayWindow(ScreenshotOverlayEventSink& eve
 #ifdef Q_OS_LINUX
     // A Qt::Tool window is not placed over the GNOME desktop, so the selection
     // mask never appears. A fullscreen frameless window covers that monitor.
-    // When the UI runs through XWayland, an override-redirect tool window is
-    // what covers Edge and Chrome the way Snipaste does.
-    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
+    // Under XWayland an override-redirect window never receives keyboard events
+    // from Mutter, so Esc could not dismiss the mask. A managed fullscreen window
+    // still stacks above Edge and Chrome and takes keyboard focus.
+    if (linuxWaylandDesktop()) {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     } else {
         setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint |
@@ -836,17 +837,14 @@ bool ScreenshotOverlayWindow::showPreparedFrameForPresentation(quint64 generatio
         m_framePresenter->presentPreparedFrame(deferFirstPaint);
     }
 #ifdef Q_OS_LINUX
-    if (QGuiApplication::platformName() == QLatin1String("wayland") && isVisible()) {
+    if (linuxWaylandDesktop() && isVisible()) {
+        // XWayland only receives the pointer where its own window is stacked
+        // above the browser, and only a focused managed window receives keys.
         raise();
         activateWindow();
         if (QWindow* handle = windowHandle()) {
             handle->requestActivate();
         }
-    } else if (linuxWaylandDesktop() && isVisible()) {
-        // XWayland only receives the pointer where its own window is stacked
-        // above the browser. Raise the opaque captured frame over Edge/Chrome.
-        raise();
-        activateWindow();
     }
 #endif
     return isPresentationCurrent(generation) && isVisible();
@@ -877,7 +875,7 @@ void ScreenshotOverlayWindow::hideForNativeSurfaceRelease() {
     snow_shot::platform::retireScreenshotWindowPresentation(this);
 #endif
 #ifdef Q_OS_LINUX
-    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
+    if (linuxWaylandDesktop()) {
         // Mutter keeps a fullscreen surface mapped after hide(), so the mask
         // stays on screen and the pointer keeps spinning. Drop fullscreen and
         // the native surface before the copy finishes.
@@ -929,8 +927,6 @@ void ScreenshotOverlayWindow::prepareWaylandSelectionSurface() {
     // A translucent tool window composites against the empty X11 root on
     // Wayland, so Edge and Chrome disappear. Paint the captured frame opaquely.
     configureOpaqueSelectionSurface(this, m_canvas);
-    if (QGuiApplication::platformName() != QLatin1String("wayland"))
-        return;
     if (screen() != nullptr) {
         setGeometry(screen()->geometry());
     }
