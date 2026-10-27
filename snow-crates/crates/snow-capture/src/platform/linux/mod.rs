@@ -5,6 +5,7 @@
 mod pipewire;
 mod pixels;
 mod screencast;
+mod warm;
 mod x11;
 
 use std::time::Duration;
@@ -235,8 +236,24 @@ impl LinuxCapturer {
         Ok(Self { rect, source: None })
     }
 
+    fn warm_key(&self) -> warm::Key {
+        warm::Key {
+            x: self.rect.x,
+            y: self.rect.y,
+            width: self.rect.width,
+            height: self.rect.height,
+            window: self.rect.window,
+        }
+    }
+
     fn ensure(&mut self) -> CaptureResult<()> {
         if self.source.is_some() {
+            return Ok(());
+        }
+        // A stream parked by an earlier capture avoids the session setup and
+        // first-frame wait.
+        if let Some(pump) = warm::take(self.warm_key()) {
+            self.source = Some(Source::Pipe(pump));
             return Ok(());
         }
         if let Some(pump) = screencast::open(
@@ -262,9 +279,18 @@ impl LinuxCapturer {
 impl MonitorCapturer for LinuxCapturer {
     fn capture(&mut self, _reuse: Option<Frame>) -> CaptureResult<Frame> {
         self.ensure()?;
-        let pipe_frame = match self.source.as_mut() {
-            Some(Source::Pipe(pump)) => Some(pump.next(FRAME_WAIT)?),
+        let pipe_result = match self.source.as_mut() {
+            Some(Source::Pipe(pump)) => Some(pump.next(FRAME_WAIT)),
             _ => None,
+        };
+        let pipe_frame = match pipe_result {
+            Some(Ok(frame)) => Some(frame),
+            Some(Err(error)) => {
+                // A stream that failed to deliver must not be parked for reuse.
+                self.source = None;
+                return Err(error);
+            }
+            None => None,
         };
         if let Some((pixels, width, height, duplicate)) = pipe_frame {
             if width == self.rect.width && height == self.rect.height {
@@ -291,7 +317,11 @@ impl MonitorCapturer for LinuxCapturer {
     }
 
     fn release_capture_access(&mut self) {
-        self.source = None;
+        // Park the PipeWire stream instead of closing it, so the next capture
+        // starts from an open stream. `warm` closes it after WARM_TTL.
+        if let Some(Source::Pipe(pump)) = self.source.take() {
+            warm::park(self.warm_key(), pump);
+        }
     }
 
     fn capture_access_active(&self) -> bool {
@@ -394,6 +424,34 @@ mod tests {
         assert_eq!(layout.virtual_width, 3200);
         assert_eq!(layout.virtual_height, 1200);
         assert_eq!(layout.monitors.len(), 2);
+    }
+
+    #[test]
+    fn released_stream_is_reused_by_the_next_capture() {
+        if std::env::var_os("WAYLAND_DISPLAY").is_none() && std::env::var_os("DISPLAY").is_none() {
+            return;
+        }
+        let backend = LinuxBackend;
+        let monitors = backend.enumerate_monitors().expect("monitors");
+        let monitor = monitors.first().expect("a monitor");
+        let mut capturer = backend.create_monitor_capturer(monitor).expect("capturer");
+        capturer.capture(None).expect("first frame");
+        let first_was_pipe = capturer.capture_access_active();
+        capturer.release_capture_access();
+        assert!(!capturer.capture_access_active());
+        if !first_was_pipe {
+            // X11 fallback has no stream to park.
+            return;
+        }
+        let started = std::time::Instant::now();
+        let frame = capturer.capture(None).expect("second frame");
+        let elapsed = started.elapsed();
+        capturer.release_capture_access();
+        assert!(frame.width() > 0 && frame.height() > 0);
+        assert!(
+            elapsed < Duration::from_millis(250),
+            "reused stream took {elapsed:?}"
+        );
     }
 
     #[test]

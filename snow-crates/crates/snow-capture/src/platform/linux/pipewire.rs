@@ -89,6 +89,20 @@ impl Pump {
         })
     }
 
+    /// Make the next `next` call return the newest buffer already received.
+    /// The compositor only pushes frames on damage, so the latest buffer is
+    /// the current screen. Without this, `next` would wait for a newer frame.
+    pub(crate) fn rewind(&mut self) {
+        let guard = self.slot.inner.lock().unwrap_or_else(|error| error.into_inner());
+        self.seen = guard.generation.saturating_sub(1);
+    }
+
+    /// False once the stream thread has reported a failure.
+    pub(crate) fn is_healthy(&self) -> bool {
+        let guard = self.slot.inner.lock().unwrap_or_else(|error| error.into_inner());
+        guard.failed.is_none()
+    }
+
     pub(crate) fn wait_ready(&mut self, timeout: Duration) -> CaptureResult<()> {
         self.next(timeout).map(|_| ())
     }
@@ -196,6 +210,13 @@ fn drive_stream(
                 return;
             }
             let _ = user_data.format.parse(param);
+        })
+        .state_changed(|_, user_data, _, new| {
+            // A parked stream is reused without a new handshake, so a dead
+            // stream has to mark itself as failed.
+            if let pw::stream::StreamState::Error(message) = new {
+                fail(&user_data.slot, message);
+            }
         })
         .process(|stream, user_data| publish_buffer(stream, user_data))
         .register()
