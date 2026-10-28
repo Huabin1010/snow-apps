@@ -286,6 +286,133 @@ void ScreenshotSelectorServiceClient::resultCallback(const SnowUiSelectorEvent* 
         Qt::QueuedConnection);
 }
 
+#elif defined(Q_OS_LINUX)
+#include "snow_shot/storage/applicationstorage.h"
+#include "snow_shot/storage/configurationschema.h"
+
+#include <QElapsedTimer>
+
+using snow_shot::presentation::EdgeRegionMode;
+using snow_shot::presentation::EdgeRegionRect;
+
+struct ScreenshotSelectorServiceClient::CallbackBridge {};
+
+namespace {
+bool smartSelectionEnabled() {
+    const auto& storage = snow_shot::storage::ApplicationStorage::instance();
+    return storage.isInitialized() ? storage.smartSelectionEnabled()
+                                   : snow_shot::storage::ConfigurationSchema::defaultValue(
+                                         QStringLiteral("screenshot_selection/smart_selection"))
+                                         .toBool();
+}
+} // namespace
+
+ScreenshotSelectorServiceClient::ScreenshotSelectorServiceClient(
+    ScreenshotSelectorServiceClientCallbacks callbacks, QObject* parent)
+    : QObject(parent), m_callbacks(std::move(callbacks)) {}
+ScreenshotSelectorServiceClient::~ScreenshotSelectorServiceClient() = default;
+bool ScreenshotSelectorServiceClient::hasService() const {
+    return m_active;
+}
+bool ScreenshotSelectorServiceClient::ensureService() {
+    m_active = true;
+    return true;
+}
+bool ScreenshotSelectorServiceClient::releaseCache() {
+    m_indexes.clear();
+    return true;
+}
+void ScreenshotSelectorServiceClient::destroyService() {
+    m_indexes.clear();
+    m_active = false;
+}
+bool ScreenshotSelectorServiceClient::startRefresh(quint64, const QVector<std::uintptr_t>&) {
+    return false;
+}
+bool ScreenshotSelectorServiceClient::startRefreshWithDisplays(
+    quint64 requestId, const QVector<std::uintptr_t>&,
+    const QVector<CapturedDisplayModel>& displays) {
+    if (displays.isEmpty())
+        return false;
+    static_cast<void>(ensureService());
+    m_indexes.clear();
+    for (const auto& display : displays) {
+        QImage image = display.image;
+        if (image.isNull())
+            continue;
+        if (image.depth() != 32)
+            image = image.convertToFormat(QImage::Format_RGB32);
+        DisplayIndex entry;
+        entry.displayId = display.nativeDisplayId;
+        entry.physicalRect = display.physicalRect;
+        entry.index = snow_shot::presentation::EdgeRegionIndex::build(
+            image.constBits(), image.width(), image.height(), image.bytesPerLine());
+        if (entry.index)
+            m_indexes.push_back(std::move(entry));
+    }
+    const bool ok = !m_indexes.isEmpty();
+    QMetaObject::invokeMethod(
+        this,
+        [this, requestId, ok]() {
+            if (m_callbacks.refreshFinished)
+                m_callbacks.refreshFinished(requestId, ok);
+        },
+        Qt::QueuedConnection);
+    return true;
+}
+bool ScreenshotSelectorServiceClient::startHitTest(quint64 epoch, quint64 requestId,
+                                                   quint64 generation, const QPoint& point,
+                                                   ScreenshotSelectorHitTestMode mode,
+                                                   quint32 displayId) {
+    if (!m_active)
+        return false;
+    ScreenshotSelectorResult result;
+    result.epoch = epoch;
+    result.requestId = requestId;
+    result.generation = generation;
+    result.point = point;
+    result.mode = mode;
+    result.displayId = displayId;
+    result.stopReason = ScreenshotSelectorStopReason::Complete;
+
+    QElapsedTimer timer;
+    timer.start();
+    const DisplayIndex* match = nullptr;
+    for (const auto& entry : std::as_const(m_indexes)) {
+        if (entry.physicalRect.contains(point) && (displayId == 0 || entry.displayId == displayId)) {
+            match = &entry;
+            break;
+        }
+    }
+    if (match != nullptr) {
+        const bool elements =
+            smartSelectionEnabled() && mode == ScreenshotSelectorHitTestMode::WindowSubElement;
+        const QPoint local = point - match->physicalRect.topLeft();
+        const auto regions = match->index->regionsAt(
+            local.x(), local.y(), elements ? EdgeRegionMode::Element : EdgeRegionMode::Window);
+        for (const EdgeRegionRect& region : regions) {
+            result.rects.push_back(QRectF(match->physicalRect.x() + region.left,
+                                          match->physicalRect.y() + region.top, region.width(),
+                                          region.height()));
+        }
+        result.displayId = match->displayId;
+    }
+    result.ok = !result.rects.isEmpty();
+    result.elapsedUs = static_cast<quint64>(timer.nsecsElapsed() / 1000);
+    QMetaObject::invokeMethod(
+        this,
+        [this, result = std::move(result)]() {
+            if (m_callbacks.resultReady)
+                m_callbacks.resultReady(result);
+        },
+        Qt::QueuedConnection);
+    return true;
+}
+bool ScreenshotSelectorServiceClient::startRefinement(const ScreenshotSelectorResult&) {
+    return false;
+}
+void ScreenshotSelectorServiceClient::invalidateRefinement() {}
+
 #else
 // Native selector unavailable on unsupported platforms.
 struct ScreenshotSelectorServiceClient::CallbackBridge {};

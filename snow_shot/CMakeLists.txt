@@ -2036,6 +2036,7 @@ set(PROJECT_CXX_SOURCES
     src/presentation/overlay/screenshotoverlayframepresenter.h
     src/presentation/overlay/screenshotoverlaywindow.cpp
     src/presentation/selector/screenshotselectorserviceclient.cpp
+    src/presentation/selector/screenshotedgeregionindex.cpp
     src/presentation/selector/screenshotselectorcoordinator.cpp
     src/presentation/selector/screenshotselectorworkflow.cpp
     src/presentation/toolbar/screenshottoolbarpresenter.cpp
@@ -3503,6 +3504,7 @@ if(SNOW_SHOT_BUILD_TESTS)
         include/snow_shot/presentation/screenshotselectorcoordinator.h
         src/presentation/selector/screenshotselectorcoordinator.cpp
         src/presentation/selector/screenshotselectorserviceclient.cpp
+        src/presentation/selector/screenshotedgeregionindex.cpp
         src/presentation/services/screenshotclipboardservice.cpp
     )
     snow_shot_alias_test_rust_ffi(snow-shot-window-element-api-tests
@@ -4245,6 +4247,42 @@ if(SNOW_SHOT_BUILD_TESTS)
         NAME snow-shot-smart-selection-transition-tests
         COMMAND snow-shot-smart-selection-transition-tests
     )
+
+    add_executable(snow-shot-edge-region-index-tests
+        tests/screenshot_edge_region_index_tests.cpp
+        include/snow_shot/presentation/screenshotedgeregionindex.h
+        src/presentation/selector/screenshotedgeregionindex.cpp
+    )
+    target_include_directories(snow-shot-edge-region-index-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    )
+    add_test(
+        NAME snow-shot-edge-region-index-tests
+        COMMAND snow-shot-edge-region-index-tests
+    )
+    set_tests_properties(snow-shot-edge-region-index-tests PROPERTIES LABELS "unit" TIMEOUT 60)
+
+    if(UNIX AND NOT APPLE)
+        add_executable(snow-shot-linux-selector-edge-region-tests
+            tests/linux_selector_edge_region_tests.cpp
+            src/presentation/selector/screenshotselectorserviceclient.cpp
+            src/presentation/selector/screenshotedgeregionindex.cpp
+        )
+        target_include_directories(snow-shot-linux-selector-edge-region-tests PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/image"
+            "${SNOW_SHOT_CAPTURE_CRATES_DIR}/crates/snow-ui-selector-c/include"
+        )
+        target_link_libraries(snow-shot-linux-selector-edge-region-tests PRIVATE
+            snow_shot_settings
+            Qt6::Widgets
+        )
+        add_test(
+            NAME snow-shot-linux-selector-edge-region-tests
+            COMMAND snow-shot-linux-selector-edge-region-tests
+        )
+        set_tests_properties(snow-shot-linux-selector-edge-region-tests PROPERTIES
+            LABELS "unit;linux" TIMEOUT 60)
+    endif()
 
     add_executable(snow-shot-multi-region-tests
         tests/screenshot_multi_region_tests.cpp

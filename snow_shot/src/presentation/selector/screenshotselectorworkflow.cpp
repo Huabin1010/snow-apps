@@ -24,7 +24,12 @@ void ScreenshotSelectorWorkflow::startRefresh() {
 
     QVector<CapturedDisplayModel> displays;
     m_context.displaySession.forEachActiveDisplay([&](qsizetype, const CapturedDisplayModel& d) {
+#ifdef Q_OS_LINUX
+        // Linux derives regions from the captured pixels; QImage is shared, not copied.
+        displays.push_back(d);
+#else
         displays.push_back(screenshotSelectorDisplayGeometry(d));
+#endif
     });
     if (!m_context.selectorService.startRefreshWithDisplays(excludedHwnds(), displays)) {
         return;

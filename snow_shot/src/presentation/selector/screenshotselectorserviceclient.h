@@ -15,6 +15,10 @@
 #include <functional>
 #include <memory>
 
+#ifdef Q_OS_LINUX
+#include "snow_shot/presentation/screenshotedgeregionindex.h"
+#endif
+
 typedef struct SnowUiSelectorServiceImpl SnowUiSelectorService;
 struct SnowUiSelectorEvent;
 
@@ -57,6 +61,17 @@ class ScreenshotSelectorServiceClient final : public QObject {
 #ifdef Q_OS_MACOS
     QVector<std::uintptr_t> m_excludedWindowIds;
     QVector<CapturedDisplayModel> m_displays;
+#endif
+#ifdef Q_OS_LINUX
+    // Wayland compositors do not expose window geometry, so regions come from the captured
+    // pixels. Only the compact edge index is kept; the pixels are released after the refresh.
+    struct DisplayIndex {
+        quint32 displayId = 0;
+        QRect physicalRect;
+        std::shared_ptr<const snow_shot::presentation::EdgeRegionIndex> index;
+    };
+    QVector<DisplayIndex> m_indexes;
+    bool m_active = false;
 #endif
 };
 

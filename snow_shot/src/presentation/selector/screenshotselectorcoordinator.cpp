@@ -31,6 +31,12 @@ ScreenshotSelectorCoordinator::ScreenshotSelectorCoordinator(QObject* parent,
                     if (key == QStringLiteral("screenshot/window_element_api"))
                         return;
 #endif
+#ifdef Q_OS_LINUX
+                    // The edge index does not depend on these settings, and the stored display
+                    // geometry carries no pixels to rebuild it from.
+                    Q_UNUSED(key);
+                    return;
+#endif
                     if (key != QStringLiteral("screenshot_selection/smart_selection") &&
                         key != QStringLiteral("screenshot/window_element_api")) {
                         return;
@@ -118,12 +124,15 @@ bool ScreenshotSelectorCoordinator::dispatchRefresh(const QVector<std::uintptr_t
     m_lastExcludedHwnds = excludedHwnds;
     m_lastDisplays = displays != nullptr ? screenshotSelectorDisplayGeometry(*displays)
                                          : QVector<CapturedDisplayModel>{};
+    // The client reads pixels only while building its index (Linux) and never retains them.
+    const QVector<CapturedDisplayModel>& clientDisplays =
+        displays != nullptr ? *displays : m_lastDisplays;
     const quint64 requestId = ++m_refreshRequestId;
     m_refreshInFlight = true;
     m_ready = false;
     const bool started =
         displays != nullptr
-            ? m_serviceClient->startRefreshWithDisplays(requestId, excludedHwnds, m_lastDisplays)
+            ? m_serviceClient->startRefreshWithDisplays(requestId, excludedHwnds, clientDisplays)
             : m_serviceClient->startRefresh(requestId, excludedHwnds);
     if (!started) {
         m_refreshInFlight = false;
