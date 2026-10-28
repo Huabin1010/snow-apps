@@ -626,7 +626,7 @@ class GlobalShortcutManager::Impl {
         // the shortcut helper. One physical press should start one capture.
         if (m_lastActivation.isValid() &&
             m_lastActivationText.compare(wanted, Qt::CaseInsensitive) == 0 &&
-            m_lastActivation.elapsed() < 1200) {
+            m_lastActivation.elapsed() < 150) {
             return true;
         }
         for (GlobalShortcutAction action : ALL_ACTIONS) {

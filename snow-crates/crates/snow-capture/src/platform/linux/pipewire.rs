@@ -48,7 +48,6 @@ pub(crate) struct Pump {
 
 struct UserData {
     format: spa::param::video::VideoInfoRaw,
-    previous: Vec<u8>,
     slot: Arc<FrameSlot>,
     region: Region,
 }
@@ -187,7 +186,6 @@ fn drive_stream(
     .map_err(|error| error.to_string())?;
     let data = UserData {
         format: spa::param::video::VideoInfoRaw::default(),
-        previous: Vec::new(),
         slot: Arc::clone(slot),
         region,
     };
@@ -302,19 +300,18 @@ fn publish_buffer(stream: &pw::stream::StreamRef, user_data: &mut UserData) {
     let Some(full) = converted else {
         return;
     };
-    let Some((pixels, width, height)) = crop_to_region(&full, width, height, &user_data.region)
+    let Some((pixels, width, height)) = crop_to_region(full, width, height, &user_data.region)
     else {
         return;
     };
-    let duplicate = user_data.previous == pixels;
-    if !duplicate {
-        user_data.previous.clone_from(&pixels);
-    }
     let mut guard = user_data
         .slot
         .inner
         .lock()
         .unwrap_or_else(|error| error.into_inner());
+    // The slot already holds the previous frame, so compare against it instead
+    // of keeping a second full-size copy that is cloned on every frame.
+    let duplicate = guard.pixels == pixels;
     guard.pixels = pixels;
     guard.width = width;
     guard.height = height;
@@ -324,18 +321,18 @@ fn publish_buffer(stream: &pw::stream::StreamRef, user_data: &mut UserData) {
 }
 
 fn crop_to_region(
-    full: &[u8],
+    full: Vec<u8>,
     width: u32,
     height: u32,
     region: &Region,
 ) -> Option<(Vec<u8>, u32, u32)> {
     if region.width == 0 || region.height == 0 || (width == region.width && height == region.height)
     {
-        return Some((full.to_vec(), width, height));
+        return Some((full, width, height));
     }
     let x = u32::try_from(region.x.saturating_sub(region.stream_x)).ok()?;
     let y = u32::try_from(region.y.saturating_sub(region.stream_y)).ok()?;
-    let pixels = crop_rgba(full, width, height, x, y, region.width, region.height)?;
+    let pixels = crop_rgba(&full, width, height, x, y, region.width, region.height)?;
     let expected = (region.width as usize)
         .checked_mul(region.height as usize)?
         .checked_mul(4)?;

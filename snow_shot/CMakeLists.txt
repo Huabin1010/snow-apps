@@ -10811,6 +10811,28 @@ install(TARGETS snow_shot
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+if(UNIX AND NOT APPLE)
+    # GNOME media-key bindings run this tiny helper instead of the full
+    # application binary, which takes seconds to start. It forwards the key
+    # to the running instance over the single-instance socket and falls back
+    # to launching the application when none is running.
+    enable_language(C)
+    find_package(OpenSSL QUIET)
+    if(OpenSSL_FOUND)
+        add_executable(snow-shot-shortcut src/platform/linux/snow-shot-shortcut.c)
+        # Directory-wide link libraries (the Qt test guard) would pull Qt and ICU
+        # into this helper and slow every key press; override them.
+        set_property(TARGET snow-shot-shortcut PROPERTY LINK_LIBRARIES OpenSSL::Crypto)
+        # The directory enables Qt autogen; this is a plain C program and must
+        # not link Qt, because loading it would defeat the fast start.
+        set_target_properties(snow-shot-shortcut PROPERTIES
+            AUTOMOC OFF AUTORCC OFF AUTOUIC OFF LINKER_LANGUAGE C)
+        add_dependencies(snow_shot snow-shot-shortcut)
+        install(TARGETS snow-shot-shortcut RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    else()
+        message(WARNING "OpenSSL not found; GNOME shortcuts will launch the full application.")
+    endif()
+endif()
 install(PROGRAMS "$<TARGET_FILE:snow_ocr_process>"
     DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

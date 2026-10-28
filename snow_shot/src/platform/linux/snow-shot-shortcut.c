@@ -17,6 +17,13 @@
 
 #include <openssl/sha.h>
 
+#ifndef SNOW_SHOT_APPLICATION_NAME
+#define SNOW_SHOT_APPLICATION_NAME "snow_shot"
+#endif
+#ifndef SNOW_SHOT_REGISTRY_NAME
+#define SNOW_SHOT_REGISTRY_NAME "SnowShot"
+#endif
+
 static int suppressed_repeat(int argc, char **argv) {
     char path[128];
     snprintf(path, sizeof(path), "/tmp/snow-shot-shortcut-%d.lock", (int)getuid());
@@ -54,7 +61,7 @@ static int suppressed_repeat(int argc, char **argv) {
     gettimeofday(&now, NULL);
     const long long ms = (long long)now.tv_sec * 1000LL + now.tv_usec / 1000;
     const int suppress =
-        previous_ms > 0 && ms >= previous_ms && ms - previous_ms < 1200 &&
+        previous_ms > 0 && ms >= previous_ms && ms - previous_ms < 150 &&
         strcmp(previous_args, current) == 0;
     if (!suppress) {
         char line[640];
@@ -131,11 +138,13 @@ int main(int argc, char **argv) {
         return 127;
     self[self_length] = '\0';
     char *slash = strrchr(self, '/');
-    if (slash == NULL || (size_t)(slash - self) + strlen("/snow-shot") >= sizeof(binary))
+    if (slash == NULL ||
+        (size_t)(slash - self) + strlen("/" SNOW_SHOT_APPLICATION_NAME) >= sizeof(binary))
         return 127;
     *slash = '\0';
-    memcpy(binary, self, (size_t)(slash - self));
-    memcpy(binary + (slash - self), "/snow-shot", strlen("/snow-shot") + 1);
+    memcpy(binary, self, strlen(self) + 1);
+    memcpy(binary + strlen(self), "/" SNOW_SHOT_APPLICATION_NAME,
+           strlen("/" SNOW_SHOT_APPLICATION_NAME) + 1);
 
     const char *home = getenv("HOME");
     if (home == NULL || home[0] == '\0') {
@@ -146,7 +155,8 @@ int main(int argc, char **argv) {
         exec_fallback(binary, argc, argv);
 
     char identity[8192];
-    snprintf(identity, sizeof(identity), "%s|SnowShot|snow_shot", home);
+    snprintf(identity, sizeof(identity), "%s|" SNOW_SHOT_REGISTRY_NAME "|" SNOW_SHOT_APPLICATION_NAME,
+             home);
     unsigned char digest[SHA256_DIGEST_LENGTH];
     SHA256((const unsigned char *)identity, strlen(identity), digest);
     char hex[25];

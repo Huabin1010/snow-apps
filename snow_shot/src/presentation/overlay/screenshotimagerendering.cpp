@@ -106,25 +106,32 @@ bool ScreenshotImageSource::imageIsOpaque(const QImage& image) const {
         return true;
 
     const auto scan = [&]() {
+        // A full-screen frame has millions of pixels. Hoist the size queries and
+        // AND the alpha bytes of a whole row, so unoptimized builds avoid a call
+        // and a branch per pixel.
+        const int width = image.width();
+        const int height = image.height();
         if (image.format() == QImage::Format_ARGB32 ||
             image.format() == QImage::Format_ARGB32_Premultiplied) {
-            for (int y = 0; y < image.height(); ++y) {
-                const auto* pixels = reinterpret_cast<const QRgb*>(image.constScanLine(y));
-                for (int x = 0; x < image.width(); ++x) {
-                    if (qAlpha(pixels[x]) != 255)
-                        return false;
-                }
+            for (int y = 0; y < height; ++y) {
+                const auto* pixels = reinterpret_cast<const quint32*>(image.constScanLine(y));
+                quint32 alpha = 0xFFu;
+                for (int x = 0; x < width; ++x)
+                    alpha &= pixels[x] >> 24;
+                if (alpha != 0xFFu)
+                    return false;
             }
             return true;
         }
         if (image.format() == QImage::Format_RGBA8888 ||
             image.format() == QImage::Format_RGBA8888_Premultiplied) {
-            for (int y = 0; y < image.height(); ++y) {
-                const auto* pixels = image.constScanLine(y);
-                for (int x = 0; x < image.width(); ++x) {
-                    if (pixels[x * 4 + 3] != 255)
-                        return false;
-                }
+            for (int y = 0; y < height; ++y) {
+                const uchar* pixels = image.constScanLine(y) + 3;
+                quint32 alpha = 0xFFu;
+                for (int x = 0; x < width; ++x)
+                    alpha &= pixels[static_cast<qsizetype>(x) * 4];
+                if (alpha != 0xFFu)
+                    return false;
             }
             return true;
         }
