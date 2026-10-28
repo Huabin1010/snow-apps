@@ -97,3 +97,4 @@ snow-crates/crates/snow-recording-export/tests/output/
 snow-crates/crates/snow-audio-recorder/tests/output/
 
 tmp/
+dist/

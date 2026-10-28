@@ -5,7 +5,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-version="${SNOW_SHOT_VERSION:-1.3.4}"
+version="${SNOW_SHOT_VERSION:-1.3.6}"
 arch="$(dpkg --print-architecture)"
 preset="${1:-snow-shot-linux-x64-debug}"
 build_dir="$root/build/$preset/snow_shot"
@@ -28,6 +28,7 @@ require "$build_dir/snow_shot"
 require "$build_dir/snow-ocr-process"
 require "$build_dir/snow-shot-mcp"
 require "$build_dir/snow-shot-updater"
+require "$build_dir/snow-shot-shortcut"
 require "$build_dir/libsnow_shot_image_codec_backend.so"
 require "$build_dir/assets/qrcode/detect.prototxt"
 require "$root/snow_shot/resources/audios/camera_shutter.mp3"
@@ -42,6 +43,10 @@ mkdir -p "$app_dir/assets/qrcode" "$app_dir/audios" \
     "$pkg_dir/DEBIAN"
 
 install -m 0755 "$build_dir/snow_shot" "$app_dir/snow-shot"
+# The GNOME key-binding helper starts "snow_shot" next to itself when the
+# application is not running yet.
+ln -s snow-shot "$app_dir/snow_shot"
+install -m 0755 "$build_dir/snow-shot-shortcut" "$app_dir/snow-shot-shortcut"
 install -m 0755 "$build_dir/snow-ocr-process" "$app_dir/snow-ocr-process"
 install -m 0755 "$build_dir/snow-shot-mcp" "$app_dir/snow-shot-mcp"
 install -m 0755 "$build_dir/snow-shot-updater" "$app_dir/snow-shot-updater"
@@ -87,6 +92,7 @@ strip --strip-unneeded \
     "$app_dir/snow-ocr-process" \
     "$app_dir/snow-shot-mcp" \
     "$app_dir/snow-shot-updater" \
+    "$app_dir/snow-shot-shortcut" \
     "$app_dir/libsnow_shot_image_codec_backend.so" \
     "$app_dir/libjpeg.so.8" \
     "$app_dir/libturbojpeg.so.0"
@@ -116,6 +122,7 @@ depends="$(
         "$app_dir/snow-ocr-process" \
         "$app_dir/snow-shot-mcp" \
         "$app_dir/snow-shot-updater" \
+        "$app_dir/snow-shot-shortcut" \
         "$app_dir/libsnow_shot_image_codec_backend.so" \
         | sed -n 's/^shlibs:Depends=//p'
 )"
