@@ -62,6 +62,20 @@ struct RunTracker {
     }
     return fallback;
 }
+
+// True when one edge of the boundary spans [begin, end) without interruption.
+[[nodiscard]] bool spans(const SegmentList& segments, int begin, int end) {
+    const auto it = std::lower_bound(segments.begin(), segments.end(), begin,
+                                     [](const Segment& s, int p) { return s.end <= p; });
+    return it != segments.end() && it->begin <= begin && it->end >= end;
+}
+
+// Boundary `b` closes a side of a rectangle when a single edge covers the rectangle's whole
+// extent on that side. Frame borders always close.
+[[nodiscard]] bool closes(const std::vector<SegmentList>& boundaries, int b, int begin, int end,
+                          int frameSize) {
+    return b <= 0 || b >= frameSize || spans(boundaries[static_cast<size_t>(b)], begin, end);
+}
 } // namespace
 
 std::shared_ptr<const EdgeRegionIndex> EdgeRegionIndex::build(const std::uint8_t* pixels,
@@ -154,6 +168,28 @@ std::vector<EdgeRegionRect> EdgeRegionIndex::regionsAt(int x, int y, EdgeRegionM
         }
         current = next;
         first = false;
+        // A side whose edge covers only part of the rectangle is not a real border (the point
+        // sat in a strip between a window border and an inner panel). Grow such sides to the
+        // next edge so a point near a border resolves to the whole window.
+        for (int pass = 0; pass < 8; ++pass) {
+            EdgeRegionRect grown = current;
+            if (!closes(m_horizontal, grown.top, grown.left, grown.right, m_height) && grown.top > 1)
+                grown.top = nearestBoundary(m_horizontal, x, grown.top - 1, 1, 0);
+            if (!closes(m_horizontal, grown.bottom, grown.left, grown.right, m_height) &&
+                grown.bottom < m_height - 1)
+                grown.bottom = nearestBoundary(m_horizontal, x, grown.bottom + 1, m_height - 1,
+                                               m_height);
+            if (!closes(m_vertical, grown.left, grown.top, grown.bottom, m_width) && grown.left > 1)
+                grown.left = nearestBoundary(m_vertical, y, grown.left - 1, 1, 0);
+            if (!closes(m_vertical, grown.right, grown.top, grown.bottom, m_width) &&
+                grown.right < m_width - 1)
+                grown.right = nearestBoundary(m_vertical, y, grown.right + 1, m_width - 1, m_width);
+            if (grown == current)
+                break;
+            current = grown;
+        }
+        if (!accepted.empty() && accepted.back() == current)
+            continue;
         if (!acceptable(current))
             break;
         accepted.push_back(current);
@@ -163,6 +199,12 @@ std::vector<EdgeRegionRect> EdgeRegionIndex::regionsAt(int x, int y, EdgeRegionM
         return {};
     if (mode == EdgeRegionMode::Window)
         return {accepted.back()};
+    // Near the window border the user is aiming at the whole window, not an inner element.
+    const EdgeRegionRect& outer = accepted.back();
+    const int margin = m_options.borderSnapMargin;
+    if (accepted.size() > 1 && (x - outer.left < margin || outer.right - 1 - x < margin ||
+                                y - outer.top < margin || outer.bottom - 1 - y < margin))
+        return {outer};
     return accepted;
 }
 

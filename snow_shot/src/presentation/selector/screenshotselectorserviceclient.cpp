@@ -16,6 +16,7 @@
 #include "../../platform/macos/selectorwindowtarget_p.h"
 #endif
 
+#include <algorithm>
 #include <utility>
 
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
@@ -333,6 +334,12 @@ bool ScreenshotSelectorServiceClient::startRefreshWithDisplays(
     quint64 requestId, const QVector<std::uintptr_t>&,
     const QVector<CapturedDisplayModel>& displays) {
     if (displays.isEmpty())
+        return false;
+    // The layout arrives before the captured pixels. Decline until pixels exist so the caller
+    // can refresh again once the frame is attached, instead of reporting a failed refresh.
+    const bool hasPixels = std::any_of(displays.cbegin(), displays.cend(),
+                                       [](const auto& d) { return !d.image.isNull(); });
+    if (!hasPixels)
         return false;
     static_cast<void>(ensureService());
     m_indexes.clear();

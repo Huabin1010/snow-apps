@@ -74,6 +74,19 @@ void pointInWindowOutsidePanelStopsAtWindow() {
             "a point outside the panel must resolve to the window");
 }
 
+void elementModeSnapsToWholeWindowNearBorder() {
+    const auto index = nestedFrame().index();
+    // 3 px inside the window's left border, well outside the panel.
+    const auto left = index->regionsAt(kWindow.left + 3, 140, EdgeRegionMode::Element);
+    require(left.size() == 1 && left[0] == kWindow, "near the left border must pick the window");
+    const auto bottom = index->regionsAt(200, kWindow.bottom - 2, EdgeRegionMode::Element);
+    require(bottom.size() == 1 && bottom[0] == kWindow,
+            "near the bottom border must pick the window");
+    // Inside the panel and far from the window border, inner elements remain available.
+    require(index->regionsAt(200, 140, EdgeRegionMode::Element).size() == 2,
+            "far from the border element mode must keep nested regions");
+}
+
 void desktopBackgroundIsNotReported() {
     const auto index = nestedFrame().index();
     require(index->regionsAt(10, 10, EdgeRegionMode::Window).empty(),
@@ -127,6 +140,7 @@ int main() {
     windowModeReturnsOutermostWindow();
     elementModeReturnsNestedRegions();
     pointInWindowOutsidePanelStopsAtWindow();
+    elementModeSnapsToWholeWindowNearBorder();
     desktopBackgroundIsNotReported();
     shortStrokesAreIgnored();
     strideWithPaddingIsHonoured();

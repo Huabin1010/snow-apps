@@ -549,6 +549,15 @@ void ScreenshotCaptureWorkflow::finishCapturePreparation(const ScreenshotCapture
     }
     SNOW_SHOT_CAPTURE_PERF_MILESTONE("capture.displays_applied");
 
+#ifdef Q_OS_LINUX
+    // Linux derives smart-selection regions from the captured pixels, which only exist now.
+    if (!m_state.presentationSuppressed && m_startMode != StartMode::ExternalDrag &&
+        m_context.selection.regionType() == ScreenshotRegionType::Rectangle &&
+        !m_context.runtime.selectorReady() && !m_context.runtime.selectorRefreshInFlight()) {
+        m_context.runtime.startWorkflowRefresh();
+    }
+#endif
+
     m_capturedPresentationSessionId = sessionId;
     showCapturePresentationWhenReady(sessionId);
     if (refreshAfterCapture) {

@@ -41,6 +41,9 @@ class EdgeRegionIndex {
         int maximumLevels = 8;
         // Regions covering at least this share of the frame are not reported.
         double areaLimit = 0.95;
+        // In element mode, a point this close (in pixels) to the outermost region's border
+        // selects that whole region instead of an inner element.
+        int borderSnapMargin = 12;
     };
 
     struct Segment {
