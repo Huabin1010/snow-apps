@@ -17,6 +17,7 @@ RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports/|${UBUNTU_MIRROR}/|g" \
         build-essential cmake ninja-build pkg-config git curl ca-certificates python3 \
         patchelf dpkg-dev file \
         qt6-base-dev qt6-base-private-dev qt6-svg-dev qt6-tools-dev qt6-wayland-dev \
+        qt6-svg-plugins libqt6waylandclient6 \
         qt6-l10n-tools libgl-dev \
         libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libswscale-dev \
         libswresample-dev libpipewire-0.3-dev \
