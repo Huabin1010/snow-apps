@@ -90,7 +90,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /opt/libjpeg-turbo-${{ env.JPEG_TURBO_VERSION }}
-          key: jpeg-turbo-${{ env.JPEG_TURBO_VERSION }}-ubuntu26.04-${{ matrix.arch }}
+          key: jpeg-turbo-${{ env.JPEG_TURBO_VERSION }}-jpeg8-ubuntu26.04-${{ matrix.arch }}
 
       - name: Build TurboJPEG
         if: steps.jpeg-cache.outputs.cache-hit != 'true'
@@ -103,6 +103,7 @@ jobs:
           prefix="/opt/libjpeg-turbo-${JPEG_TURBO_VERSION}"
           cmake -S "libjpeg-turbo-${JPEG_TURBO_VERSION}" -B jpeg-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_JPEG8=ON \
             -DCMAKE_INSTALL_PREFIX="$prefix" \
             -DCMAKE_INSTALL_LIBDIR="$prefix/lib"
           cmake --build jpeg-build

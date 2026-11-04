@@ -33,6 +33,7 @@ COPY libjpeg-turbo-3.1.1.tar.gz /tmp/
 RUN cd /tmp && tar xf libjpeg-turbo-3.1.1.tar.gz \
     && cmake -S libjpeg-turbo-3.1.1 -B jpeg-build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
+        -DWITH_JPEG8=ON \
         -DCMAKE_INSTALL_PREFIX=/opt/libjpeg-turbo-3.1.1 \
         -DCMAKE_INSTALL_LIBDIR=/opt/libjpeg-turbo-3.1.1/lib \
     && cmake --build jpeg-build \
