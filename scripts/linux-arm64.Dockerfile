@@ -18,7 +18,7 @@ RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports/|${UBUNTU_MIRROR}/|g" \
         patchelf dpkg-dev file clang-format \
         qt6-base-dev qt6-base-private-dev qt6-svg-dev qt6-tools-dev qt6-wayland-dev \
         qt6-svg-plugins libqt6waylandclient6 \
-        qt6-l10n-tools libgl-dev \
+        qt6-l10n-tools qt6-translations-l10n libgl-dev \
         libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libswscale-dev \
         libswresample-dev libpipewire-0.3-dev \
         libx11-dev libxtst-dev libx11-xcb-dev libxcb-xfixes0-dev \
