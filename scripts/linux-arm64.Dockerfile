@@ -15,7 +15,7 @@ RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports/|${UBUNTU_MIRROR}/|g" \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build pkg-config git curl ca-certificates python3 \
-        patchelf dpkg-dev file \
+        patchelf dpkg-dev file clang-format \
         qt6-base-dev qt6-base-private-dev qt6-svg-dev qt6-tools-dev qt6-wayland-dev \
         qt6-svg-plugins libqt6waylandclient6 \
         qt6-l10n-tools libgl-dev \
