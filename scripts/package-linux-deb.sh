@@ -113,6 +113,86 @@ if ldd "$app_dir/snow-shot" | grep -q 'not found'; then
     exit 1
 fi
 
+# OCR uses the bundled runtime layout: assets/ocr/asset-manifest.json describes
+# the stripped snow-ocr-process next to the executable, and the default small
+# model ships under assets/ocr/models. Other model sizes download on demand.
+# Hash the worker only after strip and patchelf have rewritten it.
+case "$arch" in
+    amd64) ocr_platform="linux-x64" ;;
+    arm64) ocr_platform="linux-arm64" ;;
+    *) echo "Unsupported OCR architecture: $arch" >&2; exit 1 ;;
+esac
+python3 - "$root/snow_shot/packaging/snow-shot-ocr-asset-manifest.json" \
+    "${SNOW_SHOT_OCR_CACHE:-$root/artifacts}" "$app_dir" "$ocr_platform" << 'EOF'
+import hashlib, json, shutil, subprocess, sys, tempfile, urllib.request
+from pathlib import Path
+
+source = json.loads(Path(sys.argv[1]).read_text())
+cache, app, platform = Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4]
+worker = app / 'snow-ocr-process'
+
+def descriptor(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as data:
+        for chunk in iter(lambda: data.read(1 << 20), b''):
+            digest.update(chunk)
+    return dict(name=path.name, size=path.stat().st_size, sha256=digest.hexdigest())
+
+def valid(path, item):
+    if not path.is_file() or path.stat().st_size != item['size']:
+        return False
+    return descriptor(path)['sha256'] == item['sha256']
+
+def fetch(item, destination):
+    if valid(destination, item):
+        return
+    if not item['url'].startswith('https://'):
+        raise SystemExit('OCR models require HTTPS')
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as output:
+        partial = Path(output.name)
+        try:
+            print(f'Downloading {item["name"]}', flush=True)
+            request = urllib.request.Request(
+                item['url'], headers={'Referer': 'https://www.modelscope.cn/'})
+            with urllib.request.urlopen(request, timeout=120) as response:
+                shutil.copyfileobj(response, output)
+            output.close()
+            if not valid(partial, item):
+                raise SystemExit(f'OCR model integrity check failed: {item["name"]}')
+            partial.replace(destination)
+        finally:
+            partial.unlink(missing_ok=True)
+
+version = source['runtime']['version']
+machine = 'x86_64' if platform == 'linux-x64' else 'aarch64'
+expected = f'snow-ocr-process {version} linux-{machine} protocol 6'
+actual = subprocess.check_output([str(worker), '--version'], text=True, timeout=60).strip()
+if actual != expected:
+    raise SystemExit(f'OCR worker reports "{actual}", expected "{expected}"')
+
+ocr = app / 'assets/ocr'
+for model in source['models']:
+    if model['type'] != 'small':
+        continue
+    directory = ocr / 'models' / model['id']
+    directory.mkdir(parents=True, exist_ok=True)
+    for item in model['files']:
+        cached = cache / ('ocr-models-' + model['id']) / item['name']
+        fetch(item, cached)
+        shutil.copyfile(cached, directory / item['name'])
+        (directory / item['name']).chmod(0o644)
+    (directory / '.complete.json').write_text(
+        json.dumps(dict(schema=1, component=model['id'])) + '\n')
+
+manifest = dict(schema=3, default_model='small', runtime=dict(
+    version=version, platform=platform, delivery='bundled', protocol=6,
+    executable=worker.name, files=[descriptor(worker)]), models=source['models'])
+(ocr / 'asset-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+EOF
+find "$app_dir/assets/ocr" -type d -exec chmod 0755 {} +
+find "$app_dir/assets/ocr" -type f -exec chmod 0644 {} +
+
 mkdir -p "$stage/debian"
 printf 'Source: snow-shot\n' > "$stage/debian/control"
 depends="$(
