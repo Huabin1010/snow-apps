@@ -499,6 +499,19 @@
       }
     },
     {
+      "name": "snow-shot-linux-x64-release",
+      "displayName": "Snow Shot Linux x64 Release",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SNOW_RUST_TARGET": "x86_64-unknown-linux-gnu",
+        "SNOW_RUST_RELEASE_PROFILE": "release-fast",
+        "SNOW_APPS_BUILD_TESTS": "OFF",
+        "SNOW_APPS_BUILD_BENCHMARKS": "OFF",
+        "SNOW_APPS_API_BASE_URL": "https://snowshot.top"
+      }
+    },
+    {
       "name": "snow-shot-linux-arm64-release",
       "displayName": "Snow Shot Linux arm64 Release",
       "inherits": "linux-base",
@@ -662,6 +675,14 @@
       "name": "build-snow-shot-linux-x64-debug",
       "configurePreset": "snow-shot-linux-x64-debug",
       "configuration": "Debug",
+      "targets": [
+        "snow_shot"
+      ]
+    },
+    {
+      "name": "build-snow-shot-linux-x64-release",
+      "configurePreset": "snow-shot-linux-x64-release",
+      "configuration": "Release",
       "targets": [
         "snow_shot"
       ]

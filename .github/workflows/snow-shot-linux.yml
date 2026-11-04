@@ -1,0 +1,168 @@
+name: Snow Shot Linux
+
+# Builds the Release Debian packages for Linux x64 and arm64 on GitHub-hosted
+# runners. The arm64 job runs on a native arm64 runner, so no emulation is used.
+# Set release_tag (or push a v*_snow-shot tag) to attach the packages to that
+# GitHub Release.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to upload the .deb files to (leave empty to only keep artifacts)
+        required: false
+        default: ''
+        type: string
+  push:
+    tags:
+      - 'v*_snow-shot'
+    branches:
+      - feat/linux-port
+    paths:
+      - .github/workflows/snow-shot-linux.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snow-shot-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JPEG_TURBO_VERSION: 3.1.1
+  JPEG_TURBO_SHA256: aadc97ea91f6ef078b0ae3a62bba69e008d9a7db19b34e4ac973b19b71b4217c
+  RUST_STABLE: 1.98.1
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+            preset: snow-shot-linux-x64-release
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            preset: snow-shot-linux-arm64-release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    # The packages link against Ubuntu 26.04 system Qt and FFmpeg, so build
+    # inside that release rather than the runner image.
+    container: ubuntu:26.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config git curl ca-certificates python3 \
+            patchelf dpkg-dev file zstd nasm clang libclang-dev \
+            qt6-base-dev qt6-base-private-dev qt6-svg-dev qt6-tools-dev qt6-wayland-dev \
+            qt6-l10n-tools libgl-dev \
+            libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libswscale-dev \
+            libswresample-dev libpipewire-0.3-dev \
+            libx11-dev libxtst-dev libx11-xcb-dev libxcb-xfixes0-dev \
+            libdbus-1-dev libatspi2.0-dev \
+            libopencv-dev libminizip-ng-dev \
+            libheif-dev libjxl-dev libgif-dev libtinyxml2-dev libcups2-dev
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Read version
+        id: version
+        run: |
+          version="$(sed -n 's/^set(SNOW_SHOT_VERSION "\(.*\)")$/\1/p' CMakeLists.txt)"
+          [[ -n "$version" ]] || { echo 'SNOW_SHOT_VERSION not found' >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          ocr_toolchain="$(sed -n 's/^channel = "\(.*\)"$/\1/p' \
+            snow-crates/crates/simd-paddle-ocr-rs/rust-toolchain.toml)"
+          echo "ocr_toolchain=$ocr_toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Cache TurboJPEG
+        id: jpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/libjpeg-turbo-${{ env.JPEG_TURBO_VERSION }}
+          key: jpeg-turbo-${{ env.JPEG_TURBO_VERSION }}-ubuntu26.04-${{ matrix.arch }}
+
+      - name: Build TurboJPEG
+        if: steps.jpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          cd /tmp
+          curl -fsSL -o jpeg.tar.gz \
+            "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/${JPEG_TURBO_VERSION}/libjpeg-turbo-${JPEG_TURBO_VERSION}.tar.gz"
+          echo "${JPEG_TURBO_SHA256}  jpeg.tar.gz" | sha256sum -c -
+          tar xf jpeg.tar.gz
+          prefix="/opt/libjpeg-turbo-${JPEG_TURBO_VERSION}"
+          cmake -S "libjpeg-turbo-${JPEG_TURBO_VERSION}" -B jpeg-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$prefix" \
+            -DCMAKE_INSTALL_LIBDIR="$prefix/lib"
+          cmake --build jpeg-build
+          cmake --install jpeg-build
+
+      - name: Install Rust
+        run: |
+          curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal \
+            --default-toolchain "$RUST_STABLE" --no-modify-path
+          "$HOME/.cargo/bin/rustup" toolchain install \
+            "${{ steps.version.outputs.ocr_toolchain }}" --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ matrix.arch }}-${{ hashFiles('snow-crates/Cargo.lock') }}
+          restore-keys: cargo-${{ matrix.arch }}-
+
+      - name: Cache OCR models
+        uses: actions/cache@v4
+        with:
+          path: artifacts/ocr-models-*
+          key: ocr-models-${{ hashFiles('snow_shot/packaging/snow-shot-ocr-asset-manifest.json') }}
+
+      - name: Build
+        run: |
+          df -h .
+          bash scripts/build-linux.sh "${{ matrix.preset }}" --skip-bootstrap --parallel "$(nproc)"
+          df -h .
+
+      - name: Package
+        env:
+          SNOW_SHOT_VERSION: ${{ steps.version.outputs.version }}
+        run: bash scripts/package-linux-deb.sh "${{ matrix.preset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snow-shot-linux-${{ matrix.arch }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: inputs.release_tag != '' || github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: snow-shot-linux-*
+          path: dist
+          merge-multiple: true
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: gh release upload "$TAG" dist/*.deb --clobber -R "$GITHUB_REPOSITORY"
