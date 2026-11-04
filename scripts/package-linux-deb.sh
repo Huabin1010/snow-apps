@@ -5,7 +5,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-version="${SNOW_SHOT_VERSION:-1.3.6}"
+version="${SNOW_SHOT_VERSION:-1.3.7}"
 arch="$(dpkg --print-architecture)"
 preset="${1:-snow-shot-linux-x64-debug}"
 build_dir="$root/build/$preset/snow_shot"
