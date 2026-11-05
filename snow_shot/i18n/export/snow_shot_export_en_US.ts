@@ -135,6 +135,10 @@
     <context>
         <name>ScreenshotPrintService</name>
         <message>
+            <source>Print screenshot</source>
+            <translation>Print screenshot</translation>
+        </message>
+        <message>
             <source>The image could not be prepared for printing</source>
             <translation>The image could not be prepared for printing</translation>
         </message>
@@ -149,6 +153,10 @@
         <message>
             <source>The native print operation failed</source>
             <translation>The native print operation failed</translation>
+        </message>
+        <message>
+            <source>The printer could not be opened</source>
+            <translation>The printer could not be opened</translation>
         </message>
         <message>
             <source>Windows printing failed (%1)</source>

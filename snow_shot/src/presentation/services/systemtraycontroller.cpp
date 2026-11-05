@@ -17,6 +17,21 @@
 #ifdef Q_OS_MACOS
 #include "snow_shot/platform/macos/systemtraymenu.h"
 #include "systemnotificationservice.h"
+#elif defined(Q_OS_UNIX)
+#include "systemnotificationservice.h"
+#endif
+
+// Native services keep a payload per delivered notification, independent of tray visibility.
+#if defined(Q_OS_MACOS)
+#define SNOW_SHOT_NATIVE_NOTIFICATIONS 1
+namespace snow_shot::presentation {
+using NativeNotificationService = platform::macos::SystemNotificationService;
+}
+#elif defined(Q_OS_UNIX)
+#define SNOW_SHOT_NATIVE_NOTIFICATIONS 1
+namespace snow_shot::presentation {
+using NativeNotificationService = platform::freedesktop::SystemNotificationService;
+}
 #endif
 
 #include "antd_icons.h"
@@ -407,16 +422,17 @@ class SystemTrayController::Impl {
         trayIcon->setObjectName(QStringLiteral("snowShotSystemTrayIcon"));
         trayIcon->setToolTip(app::edition::isMini ? app::edition::productName()
                                                   : QStringLiteral("SnowShot"));
-#ifdef Q_OS_MACOS
-        notifications = std::make_unique<platform::macos::SystemNotificationService>(&q);
-        using NotificationService = platform::macos::SystemNotificationService;
-        QObject::connect(notifications.get(), &NotificationService::activated, &q,
-                         [this](NotificationService::Action action, const QString& path) {
-                             if (action == NotificationService::Action::OpenAbout)
+#ifdef SNOW_SHOT_NATIVE_NOTIFICATIONS
+        notifications = std::make_unique<NativeNotificationService>(&q);
+        QObject::connect(notifications.get(), &NativeNotificationService::activated, &q,
+                         [this](NativeNotificationService::Action action, const QString& path) {
+                             if (action == NativeNotificationService::Action::OpenAbout)
                                  activateMessage(BalloonKind::Update, {});
-                             else if (action == NotificationService::Action::OpenRecording)
+                             else if (action == NativeNotificationService::Action::OpenRecording)
                                  activateMessage(BalloonKind::RecordingExport, path);
                          });
+#endif
+#ifdef Q_OS_MACOS
         platform::SystemNotificationDelivery delivery =
             [native = notifications.get()](const platform::SystemNotificationRequest& request,
                                            platform::SystemNotificationCompletion completed) {
@@ -424,7 +440,7 @@ class SystemTrayController::Impl {
             };
 #else
         const QPointer<QSystemTrayIcon> trayGuard(trayIcon);
-        platform::SystemNotificationDelivery delivery =
+        platform::SystemNotificationDelivery trayDelivery =
             [trayGuard](const platform::SystemNotificationRequest& request,
                         platform::SystemNotificationCompletion completed) {
                 if (!trayGuard || !trayGuard->isVisible() ||
@@ -443,6 +459,23 @@ class SystemTrayController::Impl {
                 trayGuard->showMessage(request.title, request.body, icon);
                 completed({});
             };
+#ifdef SNOW_SHOT_NATIVE_NOTIFICATIONS
+        // Desktops without a notification server may still show balloons via the tray host.
+        platform::SystemNotificationDelivery delivery =
+            [native = notifications.get(),
+             trayDelivery](const platform::SystemNotificationRequest& request,
+                           platform::SystemNotificationCompletion completed) {
+                native->show(request, [trayDelivery, request, completed = std::move(completed)](
+                                          platform::SystemNotificationResult result) {
+                    if (result.status == platform::SystemNotificationResult::Status::Unavailable)
+                        trayDelivery(request, completed);
+                    else
+                        completed(std::move(result));
+                });
+            };
+#else
+        platform::SystemNotificationDelivery delivery = std::move(trayDelivery);
+#endif
 #endif
         notificationDelivery =
             std::make_unique<SystemNotificationController>(std::move(delivery), &q);
@@ -494,8 +527,11 @@ class SystemTrayController::Impl {
                              }
                          });
 #ifndef Q_OS_MACOS
-        QObject::connect(trayIcon, &QSystemTrayIcon::messageClicked, &q,
-                         [this]() { activateMessage(lastBalloonKind, lastBalloonFilePath); });
+        // Tray balloons are tied to the icon, so a hidden tray cannot act on their clicks.
+        QObject::connect(trayIcon, &QSystemTrayIcon::messageClicked, &q, [this]() {
+            if (enabled)
+                activateMessage(lastBalloonKind, lastBalloonFilePath);
+        });
 #endif
         QObject::connect(&LanguageManager::instance(), &LanguageManager::languageChanged, &q,
                          [this](const QString&, const QLocale&) { retranslateUi(); });
@@ -556,10 +592,6 @@ class SystemTrayController::Impl {
     }
 
     void activateMessage(BalloonKind kind, const QString& filePath) {
-#ifndef Q_OS_MACOS
-        if (!enabled)
-            return;
-#endif
         if (kind == BalloonKind::Update) {
             emit q.openAboutRequested();
         } else if (kind == BalloonKind::RecordingExport) {
@@ -571,9 +603,9 @@ class SystemTrayController::Impl {
     void showBalloon(const QString& title, const QString& message,
                      QSystemTrayIcon::MessageIcon icon, BalloonKind kind,
                      const QString& filePath = {}) {
-        // Tray visibility governs only the icon/menu. macOS delivery and the actions
+        // Tray visibility governs only the icon/menu. Native delivery and the actions
         // of already delivered notifications have their own lifetime and payloads.
-#ifndef Q_OS_MACOS
+#ifndef SNOW_SHOT_NATIVE_NOTIFICATIONS
         if (enabled) {
 #endif
             lastBalloonKind = kind;
@@ -581,7 +613,7 @@ class SystemTrayController::Impl {
             trayIcon->setProperty("lastBalloonTitle", title);
             trayIcon->setProperty("lastBalloonMessage", message);
             trayIcon->setProperty("lastBalloonIcon", static_cast<int>(icon));
-#ifndef Q_OS_MACOS
+#ifndef SNOW_SHOT_NATIVE_NOTIFICATIONS
         }
 #endif
         using Action = platform::SystemNotificationAction;
@@ -908,8 +940,8 @@ class SystemTrayController::Impl {
     QPointer<adqt::widgets::AdContextMenu> menu;
     QList<QPointer<adqt::widgets::AdContextMenu>> menus;
     QSystemTrayIcon* trayIcon = nullptr;
-#ifdef Q_OS_MACOS
-    std::unique_ptr<platform::macos::SystemNotificationService> notifications;
+#ifdef SNOW_SHOT_NATIVE_NOTIFICATIONS
+    std::unique_ptr<NativeNotificationService> notifications;
 #endif
     std::unique_ptr<SystemNotificationController> notificationDelivery;
     settings::TrayCommandManifest manifest;

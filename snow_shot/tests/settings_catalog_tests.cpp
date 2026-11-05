@@ -587,8 +587,11 @@ void builtInCatalogIsCompleteAndValid() {
     const auto& expectedPlatformItems = windowsOnlyItems;
     const QSet<QString> excludedPlatformItems = macOnlyItems;
 #else
-    const QSet<QString> expectedPlatformItems{QStringLiteral("system.desktop-permissions")};
+    // Linux registers the same context menu mode with file managers instead of the registry.
+    const QSet<QString> expectedPlatformItems{QStringLiteral("system.desktop-permissions"),
+                                              QStringLiteral("system.context-menu-mode")};
     QSet<QString> excludedPlatformItems = windowsOnlyItems;
+    excludedPlatformItems.remove(QStringLiteral("system.context-menu-mode"));
     excludedPlatformItems.unite(macOnlyItems);
 #endif
     for (const auto& id : expectedPlatformItems)

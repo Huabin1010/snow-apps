@@ -135,6 +135,10 @@
     <context>
         <name>ScreenshotPrintService</name>
         <message>
+            <source>Print screenshot</source>
+            <translation>列印截圖</translation>
+        </message>
+        <message>
             <source>The image could not be prepared for printing</source>
             <translation>無法準備要列印的影像</translation>
         </message>
@@ -149,6 +153,10 @@
         <message>
             <source>The native print operation failed</source>
             <translation>系統列印操作失敗</translation>
+        </message>
+        <message>
+            <source>The printer could not be opened</source>
+            <translation>無法開啟印表機</translation>
         </message>
         <message>
             <source>Windows printing failed (%1)</source>

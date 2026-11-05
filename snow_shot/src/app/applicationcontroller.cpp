@@ -729,7 +729,7 @@ class ApplicationController::Impl {
                                   .toBool())
                 startMcp();
             handoffMcp = false;
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
             const auto deferredPaths = std::move(deferredShellFilePaths);
             deferredShellFilePaths.clear();
             const bool foreground = std::exchange(deferredShellForeground, false);
@@ -756,7 +756,7 @@ class ApplicationController::Impl {
         adqt::widgets::AdMessageService::warning(std::move(request), &window);
     }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     void pinShellFiles(QStringList paths) {
         static_cast<void>(featureRouter.dispatch(
             FeatureFamily::PinToScreen, [this, paths = std::move(paths)]() mutable {
@@ -2222,9 +2222,11 @@ class ApplicationController::Impl {
     std::unique_ptr<runtime::MemoryOptimizationController> memoryOptimization;
     std::unique_ptr<StoreUpdateLifecycle> storeLifecycle;
     update::UpdateService* updates = nullptr;
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     QStringList deferredShellFilePaths;
     bool deferredShellForeground = false;
+#endif
+#ifdef Q_OS_WIN
     QStringList deferredStorageShellFilePaths;
     bool deferredStorageShellForeground = false;
 #endif
@@ -2244,7 +2246,7 @@ void ApplicationController::showMainWindow() {
 }
 
 void ApplicationController::handleLaunchRequest(const QStringList& arguments) {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     const auto request = parseShellImageLaunchRequest(arguments);
     if (request.requested) {
         if (!request.valid) {
@@ -2261,12 +2263,17 @@ void ApplicationController::handleLaunchRequest(const QStringList& arguments) {
                     tr("Could not open the selected file: %1").arg(path));
         }
         const bool foreground = arguments.contains(QStringLiteral("--show-main-window"));
+#ifdef Q_OS_WIN
+        // Only Windows relocates storage at runtime; Linux never reports a pending change.
         if (storage::ApplicationStorage::instance().directoryChanging()) {
             m_impl->deferredStorageShellFilePaths.append(supportedPaths);
             m_impl->deferredStorageShellForeground =
                 m_impl->deferredStorageShellForeground || foreground;
-        } else if ((m_impl->updates && m_impl->updates->handoffPending()) ||
-                   (m_impl->handoffInput && m_impl->handoffInput->active)) {
+            return;
+        }
+#endif
+        if ((m_impl->updates && m_impl->updates->handoffPending()) ||
+            (m_impl->handoffInput && m_impl->handoffInput->active)) {
             m_impl->preserveShellLaunchForUpdate(supportedPaths, foreground);
         } else {
             if (!supportedPaths.isEmpty())
@@ -2290,7 +2297,7 @@ void ApplicationController::handleLaunchRequest(const QStringList& arguments) {
     if (arguments.contains(QStringLiteral("--autostart"))) {
         return;
     }
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     if ((m_impl->updates && m_impl->updates->handoffPending()) ||
         (m_impl->handoffInput && m_impl->handoffInput->active)) {
         m_impl->preserveShellLaunchForUpdate({}, true);

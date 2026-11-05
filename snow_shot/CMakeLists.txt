@@ -1085,6 +1085,32 @@ if(APPLE)
         set_tests_properties(snow-shot-macos-system-notification-tests PROPERTIES
             LABELS "unit;macos" TIMEOUT 30)
     endif()
+elseif(UNIX)
+    add_library(snow_shot_system_notifications STATIC
+        src/platform/linux/systemnotificationservice.h
+        src/platform/linux/systemnotificationservice.cpp)
+    target_include_directories(snow_shot_system_notifications PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/linux"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_link_libraries(snow_shot_system_notifications PUBLIC Qt6::Core Qt6::DBus)
+    if(SNOW_SHOT_BUILD_TESTS)
+        find_program(SNOW_SHOT_DBUS_RUN_SESSION dbus-run-session)
+        add_executable(snow-shot-linux-system-notification-tests
+            tests/linux_system_notification_tests.cpp)
+        target_link_libraries(snow-shot-linux-system-notification-tests PRIVATE
+            snow_shot_system_notifications)
+        if(SNOW_SHOT_DBUS_RUN_SESSION)
+            # A private bus keeps the fake server away from the desktop notification daemon.
+            add_test(NAME snow-shot-linux-system-notification-tests
+                COMMAND "${SNOW_SHOT_DBUS_RUN_SESSION}" --
+                    $<TARGET_FILE:snow-shot-linux-system-notification-tests>)
+        else()
+            add_test(NAME snow-shot-linux-system-notification-tests
+                COMMAND snow-shot-linux-system-notification-tests)
+        endif()
+        set_tests_properties(snow-shot-linux-system-notification-tests PROPERTIES
+            LABELS "unit" TIMEOUT 30)
+    endif()
 endif()
 if(WIN32)
     add_library(snow_shot_administrator STATIC
@@ -1123,6 +1149,16 @@ if(SNOW_SHOT_BUILD_TESTS)
     add_test(NAME snow-shot-shell-image-launch-tests COMMAND snow-shot-shell-image-launch-tests)
     set_tests_properties(snow-shot-shell-image-launch-tests PROPERTIES LABELS "unit" TIMEOUT 30
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    if(UNIX AND NOT APPLE)
+        add_executable(snow-shot-linux-shell-context-menu-registration-tests
+            tests/linux_shell_context_menu_registration_tests.cpp)
+        target_link_libraries(snow-shot-linux-shell-context-menu-registration-tests PRIVATE
+            snow_shot_administrator)
+        add_test(NAME snow-shot-linux-shell-context-menu-registration-tests
+            COMMAND snow-shot-linux-shell-context-menu-registration-tests)
+        set_tests_properties(snow-shot-linux-shell-context-menu-registration-tests PROPERTIES
+            LABELS "unit" TIMEOUT 30 SNOW_TEST_CROSS_PLATFORM TRUE)
+    endif()
 
     if(WIN32)
         add_executable(snow-shot-administrator-launch-tests tests/administrator_launch_tests.cpp)
@@ -2163,6 +2199,9 @@ if(MSVC)
 endif()
 
 target_link_libraries(snow_shot PRIVATE snow_shot_system_notification_controller)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(snow_shot PRIVATE snow_shot_system_notifications)
+endif()
 if(APPLE)
     target_link_libraries(snow_shot PRIVATE ${SNOW_SELECTED_FILES_LIBRARIES})
     target_link_libraries(snow_shot PRIVATE snow_shot_system_notifications)
@@ -3595,7 +3634,8 @@ if(SNOW_SHOT_BUILD_TESTS)
         COMMAND snow-shot-system-tray-controller-tests
     )
     if(UNIX AND NOT APPLE)
-        target_link_libraries(snow-shot-system-tray-controller-tests PRIVATE Qt6::DBus)
+        target_link_libraries(snow-shot-system-tray-controller-tests PRIVATE Qt6::DBus
+            snow_shot_system_notifications)
         add_test(NAME snow-shot-linux-status-notifier-tests
             COMMAND snow-shot-system-tray-controller-tests --status-notifier-only)
         set_tests_properties(snow-shot-linux-status-notifier-tests PROPERTIES
@@ -4733,6 +4773,7 @@ if(SNOW_SHOT_BUILD_TESTS)
             snow_shot_image_codec
             snow_shot_updates
             snow_shot_system_notification_controller
+            snow_shot_system_notifications
             ant_design_qt
             snow_shot_settings_catalog
             Qt6::Widgets
@@ -12016,6 +12057,9 @@ if(SNOW_SHOT_BUILD_BENCHMARKS)
             src/platform/macos/systemtraymenu.mm)
         target_link_libraries(snow-shot-skin-surface-performance-benchmark PRIVATE
             snow_shot_system_notifications "-framework AppKit")
+    elseif(UNIX)
+        target_link_libraries(snow-shot-skin-surface-performance-benchmark PRIVATE
+            snow_shot_system_notifications)
     endif()
     qt_import_plugins(snow-shot-skin-surface-performance-benchmark EXCLUDE Qt6::QICOPlugin)
     qt_add_resources(snow-shot-skin-surface-performance-benchmark "snow_shot_skin_surface_tray_assets"

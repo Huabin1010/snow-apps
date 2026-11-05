@@ -911,6 +911,13 @@ so every moment on screen can be expressed clearly and shared easily.</source>
         </message>
     </context>
     <context>
+        <name>snow_shot::platform::freedesktop::SystemNotificationService</name>
+        <message>
+            <source>Open</source>
+            <translation>打开</translation>
+        </message>
+    </context>
+    <context>
         <name>snow_shot::presentation::SystemTrayController</name>
         <message>
             <source>Capture</source>

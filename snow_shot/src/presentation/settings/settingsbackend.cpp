@@ -54,7 +54,7 @@ const QString kContextMenuModeKey = QStringLiteral("system/context_menu_mode");
 const QString kContextMenuShortcutKey =
     QStringLiteral("context_menu_shortcuts/edit_with_snow_shot");
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
 QString contextMenuAccessKey(const QJsonValue& value) {
     const auto bindings = shortcuts::shortcutBindingsFromJson(value, false);
     return bindings.isEmpty() ? QString() : bindings.first().portableText;
@@ -273,7 +273,7 @@ BuiltInSettingsBackend::BuiltInSettingsBackend(
     : SettingsBackend(parent), m_shortcutManager(shortcutManager), m_permissions(permissions),
       m_mouseManager(mouseManager), m_loginItems(loginItems), m_shellContextMenu(shellContextMenu),
       m_startupSettingsApply(std::move(startupSettingsApply)) {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     if (!m_shellContextMenu) {
         m_defaultShellContextMenu =
             std::make_unique<platform::windows::ShellContextMenuRegistration>();
@@ -1025,7 +1025,7 @@ bool BuiltInSettingsBackend::switchValue(SettingsSwitchBinding binding) const {
 
 bool BuiltInSettingsBackend::applyContextMenuSettings(const QJsonValue& mode,
                                                       const QJsonValue& shortcutValue) {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     const auto requestedMode = storage::ConfigurationSchema::normalize(kContextMenuModeKey, mode);
     const auto requestedShortcuts =
         storage::ConfigurationSchema::normalize(kContextMenuShortcutKey, shortcutValue);
@@ -1050,10 +1050,17 @@ bool BuiltInSettingsBackend::applyContextMenuSettings(const QJsonValue& mode,
              configuration.value(kContextMenuShortcutKey) !=
                  previous.value(kContextMenuShortcutKey)) &&
             (!configuration.setValues(previous) || !configuration.flushNow().success)) {
+#ifdef Q_OS_WIN
             result.error +=
                 QLatin1Char(' ') +
                 QCoreApplication::translate(
                     "SettingsBackend", "Could not restore the Windows context menu preference.");
+#else
+            result.error += QLatin1Char(' ') +
+                            QCoreApplication::translate(
+                                "SettingsBackend",
+                                "Could not restore the file manager context menu preference.");
+#endif
         }
         emit operationMessage(result.error, false);
     }
@@ -1072,7 +1079,7 @@ void BuiltInSettingsBackend::refreshPlatformSettings() {
 #ifdef Q_OS_MACOS
     m_loginItems->refresh();
 #endif
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     if (m_shellContextMenu) {
         QString error;
         if (!m_shellContextMenu->refreshLabels(
@@ -2345,7 +2352,7 @@ bool BuiltInSettingsBackend::importConfigurationSnapshot(
     const auto previous = configuration.snapshot();
     const QString enabledKey = QStringLiteral("system/auto_start_at_boot");
     const QString elevatedKey = QStringLiteral("system/launch_as_administrator");
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     const QString contextMenuKey = QStringLiteral("system/context_menu_mode");
 #endif
     const auto importedValue = [&](const QString& key) {
@@ -2358,7 +2365,7 @@ bool BuiltInSettingsBackend::importConfigurationSnapshot(
                                                                       : importedValue(enabledKey);
     const auto requestedElevated =
         app::distribution::isStoreManaged() ? QJsonValue(false) : importedValue(elevatedKey);
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     const auto requestedContextMenu = importedValue(contextMenuKey);
     const auto requestedContextMenuShortcuts = importedValue(kContextMenuShortcutKey);
 #endif
@@ -2371,7 +2378,7 @@ bool BuiltInSettingsBackend::importConfigurationSnapshot(
     if (app::distribution::isStoreManaged())
         staged.insert(QStringLiteral("updates/mode"),
                       previous.value(QStringLiteral("updates/mode")));
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     staged.insert(contextMenuKey, previous.value(contextMenuKey));
     staged.insert(kContextMenuShortcutKey, previous.value(kContextMenuShortcutKey));
 #endif
@@ -2417,7 +2424,7 @@ bool BuiltInSettingsBackend::importConfigurationSnapshot(
             applyStartupSettings(requestedEnabled.toBool(), requestedElevated.toBool());
         accepted = accepted && result.success;
     }
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     if (previous.value(contextMenuKey) != requestedContextMenu ||
         previous.value(kContextMenuShortcutKey) != requestedContextMenuShortcuts)
         accepted = applyContextMenuSettings(requestedContextMenu, requestedContextMenuShortcuts) &&
@@ -2986,7 +2993,7 @@ bool BuiltInSettingsBackend::resetSection(SettingsSectionReset reset) {
             emit operationMessage(result.error, false);
         emit synchronized();
         bool accepted = result.success;
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
         accepted = applySelectValue(SettingsSelectBinding::ContextMenuMode,
                                     storage::ConfigurationSchema::defaultValue(
                                         QStringLiteral("system/context_menu_mode"))

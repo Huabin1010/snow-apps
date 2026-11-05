@@ -24,6 +24,10 @@
             <translation>Microsoft Store 版本不支持以管理员身份启动。</translation>
         </message>
         <message>
+            <source>Administrator restart is not supported on Linux.</source>
+            <translation>Linux 不支持以管理员身份重启。</translation>
+        </message>
+        <message>
             <source>An interrupted startup change needs administrator authorization. Reapply your startup setting.</source>
             <translation>中断的自启动设置更改需要管理员授权。请重新应用自启动设置。</translation>
         </message>
@@ -64,6 +68,10 @@
             <translation>请完成截图、录制、导出或更新后再重启。</translation>
         </message>
         <message>
+            <source>Launching as administrator is not available on Linux.</source>
+            <translation>在 Linux 上无法以管理员身份启动。</translation>
+        </message>
+        <message>
             <source>Privilege handoff disconnected</source>
             <translation>权限交接连接已断开</translation>
         </message>
@@ -76,6 +84,14 @@
             <translation>重启</translation>
         </message>
         <message>
+            <source>Restart as administrator</source>
+            <translation>以管理员身份重启</translation>
+        </message>
+        <message>
+            <source>Restarting as administrator is not supported on Linux.</source>
+            <translation>不支持在 Linux 上以管理员身份重新启动。</translation>
+        </message>
+        <message>
             <source>Settings could not be saved.</source>
             <translation>无法保存设置。</translation>
         </message>
@@ -84,12 +100,20 @@
             <translation>无法保存设置。管理员操作已取消。</translation>
         </message>
         <message>
+            <source>Startup settings could not be saved.</source>
+            <translation>无法保存启动设置。</translation>
+        </message>
+        <message>
             <source>Startup task ownership mismatch</source>
             <translation>自启动任务所属用户不匹配</translation>
         </message>
         <message>
             <source>Startup task target mismatch</source>
             <translation>自启动任务目标不匹配</translation>
+        </message>
+        <message>
+            <source>Startup transactions are not supported on Linux.</source>
+            <translation>Linux 不支持启动设置事务。</translation>
         </message>
         <message>
             <source>The administrator handoff could not be verified.</source>
@@ -138,12 +162,40 @@
     <context>
         <name>AutoStartRegistration</name>
         <message>
+            <source>Could not create the autostart directory.</source>
+            <translation>无法创建自动启动目录。</translation>
+        </message>
+        <message>
+            <source>Could not remove the autostart entry.</source>
+            <translation>无法删除自动启动项。</translation>
+        </message>
+        <message>
+            <source>Could not write the autostart entry.</source>
+            <translation>无法写入自动启动项。</translation>
+        </message>
+        <message>
             <source>Enable Snow Shot in Windows Settings &gt; Apps &gt; Startup.</source>
             <translation>请在 Windows 设置 &gt; 应用 &gt; 启动中启用 Snow Shot。</translation>
         </message>
         <message>
+            <source>Login startup cannot be changed in the current state.</source>
+            <translation>当前状态下无法更改登录时启动。</translation>
+        </message>
+        <message>
+            <source>Start automatically when you log in and stay in the status area.</source>
+            <translation>登录时自动启动并驻留在状态区域。</translation>
+        </message>
+        <message>
             <source>Startup is managed by your organization.</source>
             <translation>启动设置由您的组织管理。</translation>
+        </message>
+        <message>
+            <source>The autostart entry is not a desktop file.</source>
+            <translation>自动启动项不是 desktop 文件。</translation>
+        </message>
+        <message>
+            <source>The saved autostart state is invalid.</source>
+            <translation>保存的自动启动状态无效。</translation>
         </message>
         <message>
             <source>Windows startup settings are unavailable.</source>
@@ -810,6 +862,10 @@
             <translation>正在请求…</translation>
         </message>
         <message>
+            <source>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</source>
+            <translation>当 Snow Shot 请求时，屏幕录制、远程桌面、全局快捷键和屏幕阅读权限由桌面门户授予。请允许这些提示，以便截图、滚动、使用快捷键和读取选中的文本。</translation>
+        </message>
+        <message>
             <source>This permission is restricted by your Mac's administrator.</source>
             <translation>此权限受到 Mac 管理员的限制。</translation>
         </message>
@@ -1061,6 +1117,10 @@
             <translation>无法恢复 Windows 右键菜单偏好设置。</translation>
         </message>
         <message>
+            <source>Could not restore the file manager context menu preference.</source>
+            <translation>无法恢复文件管理器右键菜单偏好设置。</translation>
+        </message>
+        <message>
             <source>Enter a valid HTTP or HTTPS server address without credentials, a query, or a fragment.</source>
             <translation>请输入有效的 HTTP 或 HTTPS 服务器地址，不包含凭据、查询参数或片段。</translation>
         </message>
@@ -1188,6 +1248,10 @@
             <translation>活动窗口</translation>
         </message>
         <message>
+            <source>Add Edit with Snow Shot to the Dolphin and Nemo context menus and the Files (Nautilus) Scripts menu to pin a supported image or document file to the screen.</source>
+            <translation>将“使用 Snow Shot 编辑”添加到 Dolphin 和 Nemo 的右键菜单，以及“文件”（Nautilus）的“脚本”菜单，以将支持的图像或文档文件贴到屏幕。</translation>
+        </message>
+        <message>
             <source>Add Edit with Snow Shot to the Windows context menu to pin a supported image or document file to the screen.</source>
             <translation>将“使用 Snow Shot 编辑”添加到 Windows 右键菜单，以将支持的图像或文档文件贴到屏幕。</translation>
         </message>
@@ -1238,6 +1302,10 @@
         <message>
             <source>Allow resizing the selection from its borders while non-move tools are active</source>
             <translation>启用非移动工具时，允许从选区边缘调整选区大小</translation>
+        </message>
+        <message>
+            <source>Allow the desktop portal prompts for screen recording, remote desktop, global shortcuts, and screen reading. Those grants cover capture, scrolling, hotkeys, and selected text.</source>
+            <translation>请允许桌面门户关于屏幕录制、远程桌面、全局快捷键和屏幕阅读的提示。这些授权涵盖截图、滚动、快捷键和选中的文本。</translation>
         </message>
         <message>
             <source>Always</source>
@@ -2172,6 +2240,10 @@
             <translation>在桌面快速使用截图工具</translation>
         </message>
         <message>
+            <source>Desktop portal permissions</source>
+            <translation>桌面门户权限</translation>
+        </message>
+        <message>
             <source>Destroy</source>
             <translation>销毁</translation>
         </message>
@@ -2374,6 +2446,10 @@
         <message>
             <source>Fast</source>
             <translation>快速</translation>
+        </message>
+        <message>
+            <source>File manager context menu</source>
+            <translation>文件管理器右键菜单</translation>
         </message>
         <message>
             <source>Fill Style</source>
@@ -3572,6 +3648,10 @@
             <translation>在截图中还原受支持的全屏颜色滤镜效果。</translation>
         </message>
         <message>
+            <source>Review</source>
+            <translation>查看</translation>
+        </message>
+        <message>
             <source>Rotate clockwise</source>
             <translation>顺时针旋转</translation>
         </message>
@@ -3670,6 +3750,10 @@
         <message>
             <source>Screen recording toolbar settings</source>
             <translation>屏幕录制工具栏设置</translation>
+        </message>
+        <message>
+            <source>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</source>
+            <translation>当 Snow Shot 请求时，屏幕录制、远程桌面、全局快捷键和屏幕阅读权限由桌面门户授予。请允许这些提示，以便截图、滚动、使用快捷键和读取选中的文本。</translation>
         </message>
         <message>
             <source>Screenshot</source>
@@ -4761,12 +4845,36 @@
             <translation>无法读取 Windows 右键菜单注册信息。</translation>
         </message>
         <message>
+            <source>Could not read the file manager context menu entries.</source>
+            <translation>无法读取文件管理器右键菜单项。</translation>
+        </message>
+        <message>
+            <source>Could not read the file manager context menu entry %1.</source>
+            <translation>无法读取文件管理器右键菜单项 %1。</translation>
+        </message>
+        <message>
+            <source>Could not remove the file manager context menu entry %1.</source>
+            <translation>无法删除文件管理器右键菜单项 %1。</translation>
+        </message>
+        <message>
             <source>Could not restore the Windows context menu registration. %1</source>
             <translation>无法恢复 Windows 右键菜单注册信息。%1</translation>
         </message>
         <message>
+            <source>Could not restore the file manager context menu entries. %1</source>
+            <translation>无法恢复文件管理器右键菜单项。%1</translation>
+        </message>
+        <message>
             <source>Could not save the Windows context menu preference.</source>
             <translation>无法保存 Windows 右键菜单偏好设置。</translation>
+        </message>
+        <message>
+            <source>Could not save the file manager context menu preference.</source>
+            <translation>无法保存文件管理器右键菜单偏好设置。</translation>
+        </message>
+        <message>
+            <source>Could not write the file manager context menu entry %1.</source>
+            <translation>无法写入文件管理器右键菜单项 %1。</translation>
         </message>
         <message>
             <source>Edit with Snow Shot</source>
@@ -4787,6 +4895,10 @@
         <message>
             <source>The context menu access key must be one letter (A–Z) or digit (0–9).</source>
             <translation>右键菜单访问键必须为一个字母（A–Z）或数字（0–9）。</translation>
+        </message>
+        <message>
+            <source>The file manager context menu entry %1 is owned by another application.</source>
+            <translation>文件管理器右键菜单项 %1 属于其他应用程序。</translation>
         </message>
     </context>
     <context>

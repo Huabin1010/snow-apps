@@ -125,7 +125,15 @@ function(snow_shot_add_translations target)
                 "${CMAKE_CURRENT_SOURCE_DIR}/src/update/macosupdateservice.cpp"
                 "${CMAKE_CURRENT_SOURCE_DIR}/src/update/updateservice.cpp"
                 "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows/nativeprint.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows/autostartregistration.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows/shellcontextmenuregistration.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows/administratorlaunch.cpp"
                 "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/macos/nativeprint.mm"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/linux/nativeprint.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/linux/autostartregistration.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/linux/shellcontextmenuregistration.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/linux/administratorlaunch.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/linux/systemnotificationservice.cpp"
         TS_FILES ${_snow_shot_update_ts}
         LUPDATE_TARGET snow_shot_update_translations
         OPTIONS -no-obsolete -locations none

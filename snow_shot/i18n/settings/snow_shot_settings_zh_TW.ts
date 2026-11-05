@@ -24,6 +24,10 @@
             <translation>Microsoft Store 版本不支援以系統管理員身分啟動。</translation>
         </message>
         <message>
+            <source>Administrator restart is not supported on Linux.</source>
+            <translation>Linux 不支援以系統管理員身分重新啟動。</translation>
+        </message>
+        <message>
             <source>An interrupted startup change needs administrator authorization. Reapply your startup setting.</source>
             <translation>中斷的自動啟動設定變更需要系統管理員授權。請重新套用自動啟動設定。</translation>
         </message>
@@ -64,6 +68,10 @@
             <translation>請完成擷取、錄製、匯出或更新後再重新啟動。</translation>
         </message>
         <message>
+            <source>Launching as administrator is not available on Linux.</source>
+            <translation>在 Linux 上無法以系統管理員身分啟動。</translation>
+        </message>
+        <message>
             <source>Privilege handoff disconnected</source>
             <translation>權限交接連線已中斷</translation>
         </message>
@@ -76,6 +84,14 @@
             <translation>重新啟動</translation>
         </message>
         <message>
+            <source>Restart as administrator</source>
+            <translation>以系統管理員身分重新啟動</translation>
+        </message>
+        <message>
+            <source>Restarting as administrator is not supported on Linux.</source>
+            <translation>不支援在 Linux 上以系統管理員身分重新啟動。</translation>
+        </message>
+        <message>
             <source>Settings could not be saved.</source>
             <translation>無法儲存設定。</translation>
         </message>
@@ -84,12 +100,20 @@
             <translation>無法儲存設定。系統管理員操作已取消。</translation>
         </message>
         <message>
+            <source>Startup settings could not be saved.</source>
+            <translation>無法儲存啟動設定。</translation>
+        </message>
+        <message>
             <source>Startup task ownership mismatch</source>
             <translation>自動啟動工作所屬使用者不符</translation>
         </message>
         <message>
             <source>Startup task target mismatch</source>
             <translation>自動啟動工作目標不符</translation>
+        </message>
+        <message>
+            <source>Startup transactions are not supported on Linux.</source>
+            <translation>Linux 不支援啟動設定交易。</translation>
         </message>
         <message>
             <source>The administrator handoff could not be verified.</source>
@@ -138,12 +162,40 @@
     <context>
         <name>AutoStartRegistration</name>
         <message>
+            <source>Could not create the autostart directory.</source>
+            <translation>無法建立自動啟動目錄。</translation>
+        </message>
+        <message>
+            <source>Could not remove the autostart entry.</source>
+            <translation>無法移除自動啟動項目。</translation>
+        </message>
+        <message>
+            <source>Could not write the autostart entry.</source>
+            <translation>無法寫入自動啟動項目。</translation>
+        </message>
+        <message>
             <source>Enable Snow Shot in Windows Settings &gt; Apps &gt; Startup.</source>
             <translation>請在 Windows 設定 &gt; 應用程式 &gt; 啟動中啟用 Snow Shot。</translation>
         </message>
         <message>
+            <source>Login startup cannot be changed in the current state.</source>
+            <translation>目前狀態下無法變更登入時啟動。</translation>
+        </message>
+        <message>
+            <source>Start automatically when you log in and stay in the status area.</source>
+            <translation>登入時自動啟動並常駐於狀態區域。</translation>
+        </message>
+        <message>
             <source>Startup is managed by your organization.</source>
             <translation>啟動設定由您的組織管理。</translation>
+        </message>
+        <message>
+            <source>The autostart entry is not a desktop file.</source>
+            <translation>自動啟動項目不是 desktop 檔案。</translation>
+        </message>
+        <message>
+            <source>The saved autostart state is invalid.</source>
+            <translation>儲存的自動啟動狀態無效。</translation>
         </message>
         <message>
             <source>Windows startup settings are unavailable.</source>
@@ -810,6 +862,10 @@
             <translation>正在要求…</translation>
         </message>
         <message>
+            <source>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</source>
+            <translation>當 Snow Shot 提出要求時，螢幕錄製、遠端桌面、全域快速鍵和螢幕閱讀權限由桌面入口網站授予。請允許這些提示，以便截圖、捲動、使用快速鍵和讀取選取的文字。</translation>
+        </message>
+        <message>
             <source>This permission is restricted by your Mac's administrator.</source>
             <translation>此權限受到 Mac 管理員的限制。</translation>
         </message>
@@ -1061,6 +1117,10 @@
             <translation>無法還原 Windows 右鍵選單偏好設定。</translation>
         </message>
         <message>
+            <source>Could not restore the file manager context menu preference.</source>
+            <translation>無法還原檔案管理員快顯功能表偏好設定。</translation>
+        </message>
+        <message>
             <source>Enter a valid HTTP or HTTPS server address without credentials, a query, or a fragment.</source>
             <translation>請輸入有效的 HTTP 或 HTTPS 伺服器位址，不包含認證資訊、查詢參數或片段。</translation>
         </message>
@@ -1188,6 +1248,10 @@
             <translation>作用中視窗</translation>
         </message>
         <message>
+            <source>Add Edit with Snow Shot to the Dolphin and Nemo context menus and the Files (Nautilus) Scripts menu to pin a supported image or document file to the screen.</source>
+            <translation>將「使用 Snow Shot 編輯」新增至 Dolphin 和 Nemo 的快顯功能表，以及「檔案」（Nautilus）的「指令碼」選單，以將支援的影像或文件檔案貼到螢幕。</translation>
+        </message>
+        <message>
             <source>Add Edit with Snow Shot to the Windows context menu to pin a supported image or document file to the screen.</source>
             <translation>將「使用 Snow Shot 編輯」新增至 Windows 快顯功能表，以將支援的影像或文件檔案貼到螢幕。</translation>
         </message>
@@ -1238,6 +1302,10 @@
         <message>
             <source>Allow resizing the selection from its borders while non-move tools are active</source>
             <translation>啟用非移動工具時，允許從選取區域邊緣調整大小</translation>
+        </message>
+        <message>
+            <source>Allow the desktop portal prompts for screen recording, remote desktop, global shortcuts, and screen reading. Those grants cover capture, scrolling, hotkeys, and selected text.</source>
+            <translation>請允許桌面入口網站關於螢幕錄製、遠端桌面、全域快速鍵和螢幕閱讀的提示。這些授權涵蓋截圖、捲動、快速鍵和選取的文字。</translation>
         </message>
         <message>
             <source>Always</source>
@@ -2172,6 +2240,10 @@
             <translation>在桌面快速使用截圖工具</translation>
         </message>
         <message>
+            <source>Desktop portal permissions</source>
+            <translation>桌面入口網站權限</translation>
+        </message>
+        <message>
             <source>Destroy</source>
             <translation>銷毀</translation>
         </message>
@@ -2374,6 +2446,10 @@
         <message>
             <source>Fast</source>
             <translation>快速</translation>
+        </message>
+        <message>
+            <source>File manager context menu</source>
+            <translation>檔案管理員快顯功能表</translation>
         </message>
         <message>
             <source>Fill Style</source>
@@ -3572,6 +3648,10 @@
             <translation>在螢幕擷取中還原支援的全螢幕色彩濾鏡效果。</translation>
         </message>
         <message>
+            <source>Review</source>
+            <translation>檢視</translation>
+        </message>
+        <message>
             <source>Rotate clockwise</source>
             <translation>順時針旋轉</translation>
         </message>
@@ -3670,6 +3750,10 @@
         <message>
             <source>Screen recording toolbar settings</source>
             <translation>螢幕錄製工具列設定</translation>
+        </message>
+        <message>
+            <source>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</source>
+            <translation>當 Snow Shot 提出要求時，螢幕錄製、遠端桌面、全域快速鍵和螢幕閱讀權限由桌面入口網站授予。請允許這些提示，以便截圖、捲動、使用快速鍵和讀取選取的文字。</translation>
         </message>
         <message>
             <source>Screenshot</source>
@@ -4761,12 +4845,36 @@
             <translation>無法讀取 Windows 右鍵選單註冊資訊。</translation>
         </message>
         <message>
+            <source>Could not read the file manager context menu entries.</source>
+            <translation>無法讀取檔案管理員快顯功能表項目。</translation>
+        </message>
+        <message>
+            <source>Could not read the file manager context menu entry %1.</source>
+            <translation>無法讀取檔案管理員快顯功能表項目 %1。</translation>
+        </message>
+        <message>
+            <source>Could not remove the file manager context menu entry %1.</source>
+            <translation>無法移除檔案管理員快顯功能表項目 %1。</translation>
+        </message>
+        <message>
             <source>Could not restore the Windows context menu registration. %1</source>
             <translation>無法還原 Windows 右鍵選單註冊資訊。%1</translation>
         </message>
         <message>
+            <source>Could not restore the file manager context menu entries. %1</source>
+            <translation>無法還原檔案管理員快顯功能表項目。%1</translation>
+        </message>
+        <message>
             <source>Could not save the Windows context menu preference.</source>
             <translation>無法儲存 Windows 右鍵選單偏好設定。</translation>
+        </message>
+        <message>
+            <source>Could not save the file manager context menu preference.</source>
+            <translation>無法儲存檔案管理員快顯功能表偏好設定。</translation>
+        </message>
+        <message>
+            <source>Could not write the file manager context menu entry %1.</source>
+            <translation>無法寫入檔案管理員快顯功能表項目 %1。</translation>
         </message>
         <message>
             <source>Edit with Snow Shot</source>
@@ -4787,6 +4895,10 @@
         <message>
             <source>The context menu access key must be one letter (A–Z) or digit (0–9).</source>
             <translation>右鍵選單存取鍵必須為一個字母（A–Z）或數字（0–9）。</translation>
+        </message>
+        <message>
+            <source>The file manager context menu entry %1 is owned by another application.</source>
+            <translation>檔案管理員快顯功能表項目 %1 屬於其他應用程式。</translation>
         </message>
     </context>
     <context>

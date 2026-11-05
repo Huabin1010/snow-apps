@@ -2391,14 +2391,22 @@ SettingsItemDefinition autoStartItem() {
         QStringLiteral("system/auto_start_at_boot"), SettingsSwitchBinding::AutoStartAtBoot);
 }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
 SettingsItemDefinition contextMenuModeItem() {
     return fixedSelectItem(
         QStringLiteral("system.context-menu-mode"),
+#ifdef Q_OS_WIN
         QT_TRANSLATE_NOOP("SettingsCatalog", "Windows context menu"),
         QT_TRANSLATE_NOOP("SettingsCatalog",
                           "Add Edit with Snow Shot to the Windows context menu to pin a "
                           "supported image or document file to the screen."),
+#else
+        QT_TRANSLATE_NOOP("SettingsCatalog", "File manager context menu"),
+        QT_TRANSLATE_NOOP("SettingsCatalog",
+                          "Add Edit with Snow Shot to the Dolphin and Nemo context menus and "
+                          "the Files (Nautilus) Scripts menu to pin a supported image or "
+                          "document file to the screen."),
+#endif
         QStringLiteral("system/context_menu_mode"), SettingsSelectBinding::ContextMenuMode,
         {{QStringLiteral("image_files"),
           settingsText(QT_TRANSLATE_NOOP("SettingsCatalog", "Image and document files"))},
@@ -3294,7 +3302,7 @@ QVector<SettingsPageDefinition> builtInPages() {
 #elif defined(Q_OS_LINUX)
                   portalPermissionsItem(),
 #endif
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
                   contextMenuModeItem(),
 #endif
                   updateModeItem()},

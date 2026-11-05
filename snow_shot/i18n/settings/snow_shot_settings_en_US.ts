@@ -24,6 +24,10 @@
             <translation>Administrator launch is unavailable in the Microsoft Store version.</translation>
         </message>
         <message>
+            <source>Administrator restart is not supported on Linux.</source>
+            <translation>Administrator restart is not supported on Linux.</translation>
+        </message>
+        <message>
             <source>An interrupted startup change needs administrator authorization. Reapply your startup setting.</source>
             <translation>An interrupted startup change needs administrator authorization. Reapply your startup setting.</translation>
         </message>
@@ -64,6 +68,10 @@
             <translation>Finish capturing, recording, exporting, or updating before restarting.</translation>
         </message>
         <message>
+            <source>Launching as administrator is not available on Linux.</source>
+            <translation>Launching as administrator is not available on Linux.</translation>
+        </message>
+        <message>
             <source>Privilege handoff disconnected</source>
             <translation>Privilege handoff disconnected</translation>
         </message>
@@ -76,6 +84,14 @@
             <translation>Restart</translation>
         </message>
         <message>
+            <source>Restart as administrator</source>
+            <translation>Restart as administrator</translation>
+        </message>
+        <message>
+            <source>Restarting as administrator is not supported on Linux.</source>
+            <translation>Restarting as administrator is not supported on Linux.</translation>
+        </message>
+        <message>
             <source>Settings could not be saved.</source>
             <translation>Settings could not be saved.</translation>
         </message>
@@ -84,12 +100,20 @@
             <translation>Settings could not be saved. The administrator operation was cancelled.</translation>
         </message>
         <message>
+            <source>Startup settings could not be saved.</source>
+            <translation>Startup settings could not be saved.</translation>
+        </message>
+        <message>
             <source>Startup task ownership mismatch</source>
             <translation>Startup task ownership mismatch</translation>
         </message>
         <message>
             <source>Startup task target mismatch</source>
             <translation>Startup task target mismatch</translation>
+        </message>
+        <message>
+            <source>Startup transactions are not supported on Linux.</source>
+            <translation>Startup transactions are not supported on Linux.</translation>
         </message>
         <message>
             <source>The administrator handoff could not be verified.</source>
@@ -138,12 +162,40 @@
     <context>
         <name>AutoStartRegistration</name>
         <message>
+            <source>Could not create the autostart directory.</source>
+            <translation>Could not create the autostart directory.</translation>
+        </message>
+        <message>
+            <source>Could not remove the autostart entry.</source>
+            <translation>Could not remove the autostart entry.</translation>
+        </message>
+        <message>
+            <source>Could not write the autostart entry.</source>
+            <translation>Could not write the autostart entry.</translation>
+        </message>
+        <message>
             <source>Enable Snow Shot in Windows Settings &gt; Apps &gt; Startup.</source>
             <translation>Enable Snow Shot in Windows Settings &gt; Apps &gt; Startup.</translation>
         </message>
         <message>
+            <source>Login startup cannot be changed in the current state.</source>
+            <translation>Login startup cannot be changed in the current state.</translation>
+        </message>
+        <message>
+            <source>Start automatically when you log in and stay in the status area.</source>
+            <translation>Start automatically when you log in and stay in the status area.</translation>
+        </message>
+        <message>
             <source>Startup is managed by your organization.</source>
             <translation>Startup is managed by your organization.</translation>
+        </message>
+        <message>
+            <source>The autostart entry is not a desktop file.</source>
+            <translation>The autostart entry is not a desktop file.</translation>
+        </message>
+        <message>
+            <source>The saved autostart state is invalid.</source>
+            <translation>The saved autostart state is invalid.</translation>
         </message>
         <message>
             <source>Windows startup settings are unavailable.</source>
@@ -810,6 +862,10 @@
             <translation>Requesting…</translation>
         </message>
         <message>
+            <source>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</source>
+            <translation>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</translation>
+        </message>
+        <message>
             <source>This permission is restricted by your Mac's administrator.</source>
             <translation>This permission is restricted by your Mac's administrator.</translation>
         </message>
@@ -1061,6 +1117,10 @@
             <translation>Could not restore the Windows context menu preference.</translation>
         </message>
         <message>
+            <source>Could not restore the file manager context menu preference.</source>
+            <translation>Could not restore the file manager context menu preference.</translation>
+        </message>
+        <message>
             <source>Enter a valid HTTP or HTTPS server address without credentials, a query, or a fragment.</source>
             <translation>Enter a valid HTTP or HTTPS server address without credentials, a query, or a fragment.</translation>
         </message>
@@ -1188,6 +1248,10 @@
             <translation>Active window</translation>
         </message>
         <message>
+            <source>Add Edit with Snow Shot to the Dolphin and Nemo context menus and the Files (Nautilus) Scripts menu to pin a supported image or document file to the screen.</source>
+            <translation>Add Edit with Snow Shot to the Dolphin and Nemo context menus and the Files (Nautilus) Scripts menu to pin a supported image or document file to the screen.</translation>
+        </message>
+        <message>
             <source>Add Edit with Snow Shot to the Windows context menu to pin a supported image or document file to the screen.</source>
             <translation>Add Edit with Snow Shot to the Windows context menu to pin a supported image or document file to the screen.</translation>
         </message>
@@ -1238,6 +1302,10 @@
         <message>
             <source>Allow resizing the selection from its borders while non-move tools are active</source>
             <translation>Allow resizing the selection from its borders while non-move tools are active</translation>
+        </message>
+        <message>
+            <source>Allow the desktop portal prompts for screen recording, remote desktop, global shortcuts, and screen reading. Those grants cover capture, scrolling, hotkeys, and selected text.</source>
+            <translation>Allow the desktop portal prompts for screen recording, remote desktop, global shortcuts, and screen reading. Those grants cover capture, scrolling, hotkeys, and selected text.</translation>
         </message>
         <message>
             <source>Always</source>
@@ -2172,6 +2240,10 @@
             <translation>Desktop access to your capture tools</translation>
         </message>
         <message>
+            <source>Desktop portal permissions</source>
+            <translation>Desktop portal permissions</translation>
+        </message>
+        <message>
             <source>Destroy</source>
             <translation>Destroy</translation>
         </message>
@@ -2374,6 +2446,10 @@
         <message>
             <source>Fast</source>
             <translation>Fast</translation>
+        </message>
+        <message>
+            <source>File manager context menu</source>
+            <translation>File manager context menu</translation>
         </message>
         <message>
             <source>Fill Style</source>
@@ -3572,6 +3648,10 @@
             <translation>Reverse supported full-screen color filters in screenshots.</translation>
         </message>
         <message>
+            <source>Review</source>
+            <translation>Review</translation>
+        </message>
+        <message>
             <source>Rotate clockwise</source>
             <translation>Rotate clockwise</translation>
         </message>
@@ -3670,6 +3750,10 @@
         <message>
             <source>Screen recording toolbar settings</source>
             <translation>Screen recording toolbar settings</translation>
+        </message>
+        <message>
+            <source>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</source>
+            <translation>Screen recording, remote desktop, global shortcuts, and screen reading are granted by the desktop portal when Snow Shot asks. Allow those prompts to capture, scroll, use hotkeys, and read selected text.</translation>
         </message>
         <message>
             <source>Screenshot</source>
@@ -4761,12 +4845,36 @@
             <translation>Could not read the Windows context menu registration.</translation>
         </message>
         <message>
+            <source>Could not read the file manager context menu entries.</source>
+            <translation>Could not read the file manager context menu entries.</translation>
+        </message>
+        <message>
+            <source>Could not read the file manager context menu entry %1.</source>
+            <translation>Could not read the file manager context menu entry %1.</translation>
+        </message>
+        <message>
+            <source>Could not remove the file manager context menu entry %1.</source>
+            <translation>Could not remove the file manager context menu entry %1.</translation>
+        </message>
+        <message>
             <source>Could not restore the Windows context menu registration. %1</source>
             <translation>Could not restore the Windows context menu registration. %1</translation>
         </message>
         <message>
+            <source>Could not restore the file manager context menu entries. %1</source>
+            <translation>Could not restore the file manager context menu entries. %1</translation>
+        </message>
+        <message>
             <source>Could not save the Windows context menu preference.</source>
             <translation>Could not save the Windows context menu preference.</translation>
+        </message>
+        <message>
+            <source>Could not save the file manager context menu preference.</source>
+            <translation>Could not save the file manager context menu preference.</translation>
+        </message>
+        <message>
+            <source>Could not write the file manager context menu entry %1.</source>
+            <translation>Could not write the file manager context menu entry %1.</translation>
         </message>
         <message>
             <source>Edit with Snow Shot</source>
@@ -4787,6 +4895,10 @@
         <message>
             <source>The context menu access key must be one letter (A–Z) or digit (0–9).</source>
             <translation>The context menu access key must be one letter (A–Z) or digit (0–9).</translation>
+        </message>
+        <message>
+            <source>The file manager context menu entry %1 is owned by another application.</source>
+            <translation>The file manager context menu entry %1 is owned by another application.</translation>
         </message>
     </context>
     <context>

@@ -18,6 +18,7 @@
     "SystemTrayController",
     "TitleBarWidget",
     "snow_shot::app::ApplicationController",
+    "snow_shot::platform::freedesktop::SystemNotificationService",
     "snow_shot::presentation::SystemTrayController"
   ],
   "settings": [

@@ -769,7 +769,7 @@ int main(int argc, char* argv[]) {
     static_cast<void>(updaterRelaunch);
 #endif
     const auto startupSettings = snow_shot::storage::SystemSettings();
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     QString shellRegistrationError;
     const snow_shot::platform::windows::ShellContextMenuRegistration shellRegistration;
     const auto contextMenuShortcuts = snow_shot::shortcuts::shortcutBindingsFromJson(
