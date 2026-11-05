@@ -197,8 +197,9 @@ if(SNOW_IMAGE_PROFILE STREQUAL "full")
     )
 elseif(SNOW_APPS_BUILD_SNOW_SHOT)
     # Keep Snow Shot's raster export codecs and animated pin decoders in the
-    # minimal workspace configuration as well as the full profile.
-    set(_snow_workspace_image_codecs PNG JPEG GIF HEIF JXL WEBP)
+    # minimal workspace configuration as well as the full profile. ICON has no
+    # external dependency and decodes custom tray icons without Qt's ICO plugin.
+    set(_snow_workspace_image_codecs PNG JPEG GIF ICON HEIF JXL WEBP)
 else()
     set(_snow_workspace_image_codecs)
 endif()

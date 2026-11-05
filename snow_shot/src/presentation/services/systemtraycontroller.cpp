@@ -183,7 +183,11 @@ class TrayImageCache final {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 12, 0)
         const QSize sourceSize = reader.effectiveSize();
 #else
-        const QSize sourceSize = reader.size();
+        // Before Qt 6.12 size() reports encoded dimensions; apply the quarter-turn ourselves.
+        const QSize sourceSize =
+            reader.transformation().testFlag(QImageIOHandler::TransformationRotate90)
+                ? reader.size().transposed()
+                : reader.size();
 #endif
         if (!sourceSize.isValid() || sourceSize.width() <= 0 || sourceSize.height() <= 0 ||
             sourceSize.width() > 16384 || sourceSize.height() > 16384 ||
@@ -497,18 +501,18 @@ class SystemTrayController::Impl {
                              }
 #endif
 #ifdef Q_OS_LINUX
-                            // GNOME expands the published status menu on a single click.
-                            // A double-click is delivered as Activate/Trigger; that opens
-                            // settings, because a grab popup cannot be shown from the tray.
-                            if (reason == QSystemTrayIcon::Trigger ||
-                                reason == QSystemTrayIcon::DoubleClick) {
-                                emit q.openFunctionSettingsRequested();
-                                return;
-                            }
-                            if (reason == QSystemTrayIcon::Context) {
-                                showExpandedMenu();
-                                return;
-                            }
+                             // GNOME expands the published status menu on a single click.
+                             // A double-click is delivered as Activate/Trigger; that opens
+                             // settings, because a grab popup cannot be shown from the tray.
+                             if (reason == QSystemTrayIcon::Trigger ||
+                                 reason == QSystemTrayIcon::DoubleClick) {
+                                 emit q.openFunctionSettingsRequested();
+                                 return;
+                             }
+                             if (reason == QSystemTrayIcon::Context) {
+                                 showExpandedMenu();
+                                 return;
+                             }
 #endif
                              if (reason == QSystemTrayIcon::Trigger) {
                                  dispatchClickAction(leftClickAction);

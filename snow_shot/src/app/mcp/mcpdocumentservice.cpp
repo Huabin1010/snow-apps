@@ -618,7 +618,11 @@ class DocumentWorker final : public QObject {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 12, 0)
                 auto size = reader.effectiveSize();
 #else
-                auto size = reader.size();
+                // Before Qt 6.12 size() ignores EXIF quarter-turns; match effectiveSize().
+                auto size =
+                    reader.transformation().testFlag(QImageIOHandler::TransformationRotate90)
+                        ? reader.size().transposed()
+                        : reader.size();
 #endif
                 const bool native = !size.isValid();
                 auto nativeFormat = snow::image::Format::unknown;

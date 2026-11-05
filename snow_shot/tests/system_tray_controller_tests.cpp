@@ -1262,8 +1262,14 @@ int main(int argc, char* argv[]) {
                                 .absoluteFilePath(QStringLiteral("../resources/app-icon.ico"));
     const QStringList pluginPaths = QCoreApplication::libraryPaths();
     QCoreApplication::setLibraryPaths({});
+#ifdef Q_OS_LINUX
+    // Linux links the shared system Qt: its plugin loader keeps the ICO plugin it discovered
+    // during QApplication startup, so it cannot be removed here. The frame-selection and DIB
+    // checks below still fail if the tray decodes ICO files through Qt instead of image_codec.
+#else
     require(!QImageReader::supportedImageFormats().contains(QByteArrayLiteral("ico")),
             "the regression must run without a Qt ICO decoder");
+#endif
     controller.setCustomIconPath(icoPath);
     require(trayIcon->property("customIconSourcePixelSize").toSize() == QSize(256, 256) &&
                 trayIcon->property("customIconDecodedPixelSize").toSize() == QSize(256, 256),
@@ -1386,7 +1392,18 @@ int main(int argc, char* argv[]) {
                 QStringLiteral(":/snow-shot/app-icons/snow-shot-tray-light.png"),
             "a readable custom image outside PNG and ICO should use the bundled fallback");
 
+#ifdef Q_OS_LINUX
+    // StatusNotifier shells expand the menu published on the tray icon, so Linux keeps it
+    // attached; it must stay closed until the shell or a click asks for it.
+    const auto* publishedMenu =
+        qobject_cast<adqt::widgets::AdContextMenu*>(trayIcon->contextMenu());
+    require(publishedMenu != nullptr &&
+                publishedMenu->objectName() == QStringLiteral("systemTrayMenu") &&
+                !publishedMenu->isPopupVisible(),
+            "the tray must publish its status menu without opening it");
+#else
     require(trayIcon->contextMenu() == nullptr, "the tray must not retain an attached popup");
+#endif
     auto* menu = controller.createContextMenu();
     require(menu != nullptr, "the tray should use the Ant Design context menu");
     require(menu->minimumWidth() == 300,
@@ -1556,12 +1573,15 @@ int main(int argc, char* argv[]) {
     menuWithRestart.push_back(QStringLiteral("tray.restart-app"));
     controller.setMenuOptions(menuWithRestart);
     const QList<QAction*> visibleWithRestart = visibleActions();
-    require(restartMenuAction->isVisible() &&
-                visibleWithRestart.indexOf(restartMenuAction) ==
+    QAction* settingsMenuAction = actionForId(QStringLiteral("tray.open-settings"));
+    require(restartMenuAction->isVisible() && settingsMenuAction != nullptr &&
+                visibleWithRestart.indexOf(settingsMenuAction) ==
                     visibleWithRestart.indexOf(showMainWindowMenuAction) + 1 &&
+                visibleWithRestart.indexOf(restartMenuAction) ==
+                    visibleWithRestart.indexOf(settingsMenuAction) + 1 &&
                 visibleWithRestart.indexOf(exitMenuAction) ==
                     visibleWithRestart.indexOf(restartMenuAction) + 1,
-            "Restart App should be opt-in directly below Show main interface and above Exit");
+            "Restart App should be opt-in directly below Settings and above Exit");
     controller.setMenuOptions(defaultMenuOptions);
 
     snow_shot::presentation::PinnedWindowGroupManager groupManager;
@@ -1758,7 +1778,14 @@ int main(int argc, char* argv[]) {
 
     // The tray New Group action runs while the application has no active or
     // visible window; its dialog must still open and complete the creation.
-    require(QApplication::activeWindow() == nullptr,
+    // Outside an event loop the accepted confirmation and its overlay are only hidden.
+    // The Linux wayland and offscreen plugins keep a hidden window active until it is
+    // destroyed. Release them as the event loop would: deleting the modal posts the
+    // deletion of its overlay, so this needs two passes.
+    for (int pass = 0; pass < 3 && QApplication::activeWindow() != nullptr; ++pass)
+        drainMenus();
+    require(deletionModalNamed(QStringLiteral("pinnedWindowGroupDeleteEmptyModal")) == nullptr &&
+                QApplication::activeWindow() == nullptr,
             "the tray-only state should have no active window");
     // Re-resolve the action: the group mutations above rebuild the group menu,
     // so actions captured earlier may have been destroyed.
@@ -1847,17 +1874,26 @@ int main(int argc, char* argv[]) {
             screenshotRequests = showMainWindowRequests = functionSettingsRequests = 0;
             quickActions.clear();
             trayIcon->activated(reason);
+#ifdef Q_OS_LINUX
+            // StatusNotifier shells deliver a click as Trigger and expand the published
+            // menu themselves, so Linux maps Trigger to Settings instead of leftClickAction.
+            const QString dispatched = reason == QSystemTrayIcon::Trigger
+                                           ? QStringLiteral("open_function_settings")
+                                           : action;
+#else
+            const QString& dispatched = action;
+#endif
             require(!menu->isPopupVisible(), "tray click actions must not open the context menu");
-            require(screenshotRequests == (action == QStringLiteral("screenshot") ? 1 : 0) &&
+            require(screenshotRequests == (dispatched == QStringLiteral("screenshot") ? 1 : 0) &&
                         showMainWindowRequests ==
-                            (action == QStringLiteral("show_main_window") ? 1 : 0) &&
+                            (dispatched == QStringLiteral("show_main_window") ? 1 : 0) &&
                         functionSettingsRequests ==
-                            (action == QStringLiteral("open_function_settings") ? 1 : 0),
+                            (dispatched == QStringLiteral("open_function_settings") ? 1 : 0),
                     "each tray button must dispatch exactly the selected dedicated request");
             QVector<snow_shot::presentation::GlobalShortcutAction> expected;
-            if (action == QStringLiteral("screenshot_copy")) {
+            if (dispatched == QStringLiteral("screenshot_copy")) {
                 expected.push_back(snow_shot::presentation::GlobalShortcutAction::ScreenshotCopy);
-            } else if (action == QStringLiteral("screenshot_fixed")) {
+            } else if (dispatched == QStringLiteral("screenshot_fixed")) {
                 expected.push_back(snow_shot::presentation::GlobalShortcutAction::ScreenshotFixed);
             }
             require(quickActions == expected,
@@ -1874,7 +1910,14 @@ int main(int argc, char* argv[]) {
     trayIcon->activated(QSystemTrayIcon::DoubleClick);
     trayIcon->activated(QSystemTrayIcon::MiddleClick);
     trayIcon->activated(QSystemTrayIcon::Unknown);
+#ifdef Q_OS_LINUX
+    // Trigger and DoubleClick both open Settings on Linux; neither captures.
+    require(screenshotRequests == 0 && functionSettingsRequests == 2,
+            "Linux tray activation should open Settings instead of capturing");
+    functionSettingsRequests = 0;
+#else
     require(screenshotRequests == 1, "only a left-click trigger should request a screenshot");
+#endif
     require(quickActions ==
                     QVector<snow_shot::presentation::GlobalShortcutAction>{
                         snow_shot::presentation::GlobalShortcutAction::ScreenshotFixed} &&
@@ -1886,8 +1929,15 @@ int main(int argc, char* argv[]) {
     require(controller.leftClickAction() == QStringLiteral("show_main_window"),
             "the configured show-window left-click action should be retained");
     trayIcon->activated(QSystemTrayIcon::Trigger);
+#ifdef Q_OS_LINUX
+    // The stored action is retained for other platforms, but Linux Trigger opens Settings.
+    require(screenshotRequests == 0 && showMainWindowRequests == 0 && functionSettingsRequests == 1,
+            "the Linux tray left-click should open Settings regardless of the stored action");
+    functionSettingsRequests = 0;
+#else
     require(screenshotRequests == 1 && showMainWindowRequests == 1,
             "the configured tray left-click should request the main window");
+#endif
     controller.setLeftClickAction(QStringLiteral("unsupported"));
     require(controller.leftClickAction() == QStringLiteral("screenshot"),
             "an unsupported tray left-click action should fall back to Screenshot");
@@ -1920,6 +1970,10 @@ int main(int argc, char* argv[]) {
             "a balloon suppressed while the tray is disabled must stay unclickable");
 #endif
 
+    // Earlier tray activations dispatch per platform, so compare against the counts
+    // recorded just before the menu actions run.
+    const int screenshotRequestsBeforeMenu = screenshotRequests;
+    const int showMainWindowRequestsBeforeMenu = showMainWindowRequests;
     screenshotMenuAction->trigger();
     showMainWindowMenuAction->trigger();
     restartMenuAction->trigger();
@@ -1928,7 +1982,8 @@ int main(int argc, char* argv[]) {
                 QVector<snow_shot::presentation::GlobalShortcutAction>{
                     snow_shot::presentation::GlobalShortcutAction::Screenshot},
             "generated tray actions should emit their catalog shortcut commands");
-    require(screenshotRequests == 1 && showMainWindowRequests == 2,
+    require(screenshotRequests == screenshotRequestsBeforeMenu &&
+                showMainWindowRequests == showMainWindowRequestsBeforeMenu + 1,
             "Show main interface should emit the dedicated tray request");
     require(restartRequests == 1, "Restart App should emit its dedicated tray request once");
     require(exitRequests == 1, "the Exit action should emit its request");
@@ -2158,7 +2213,15 @@ int main(int argc, char* argv[]) {
     require(requested && requested->isPopupVisible(), "a tray context request creates a popup");
     requested->dismissPopup();
     drainMenus();
+#ifdef Q_OS_LINUX
+    // Context expands the status menu published on the tray icon; it must survive
+    // dismissal so the shell can expand it again.
+    require(requested && trayIcon->contextMenu() == requested.data() &&
+                !requested->isPopupVisible(),
+            "a Linux tray context session keeps its published menu closed after dismissal");
+#else
     require(!requested, "a tray context session releases its menu after dismissal");
+#endif
 #else
     drainMenus();
     require(!hasTrayMenu(), "a synthetic Context cancels its unpresented native session");
