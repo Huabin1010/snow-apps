@@ -140,28 +140,34 @@ python3 "$snow_repo_root/scripts/validate-static-qt.py" --source-dir "$source_di
 mkdir -p "$build_dir"
 (
     cd "$build_dir"
-    "$source_dir/configure" \
-        -static -release -ltcg -system-zlib -system-libpng -no-opengl \
-        -opensource -confirm-license -prefix "$install_prefix" \
-        -submodules qtbase,qtsvg,qttools,qttranslations \
-        -skip qtactiveqt -skip qtdeclarative -skip qtimageformats \
-        -skip qtlanguageserver -skip qtshadertools \
-        -nomake tests -nomake examples -- \
-        -DCMAKE_OSX_ARCHITECTURES="$cmake_arch" \
-        -DCMAKE_OSX_DEPLOYMENT_TARGET="$qt_deployment_target" \
-        -DCMAKE_PREFIX_PATH="$dependency_prefix" \
-        -DZLIB_ROOT="$dependency_prefix" -DPNG_ROOT="$dependency_prefix" \
-        -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON \
-        -DFEATURE_timezone=ON -DFEATURE_timezone_locale=OFF \
-        -DFEATURE_dup3=OFF \
-        -DQT_FEATURE_concurrent=ON -DQT_FEATURE_dbus=OFF \
-        -DQT_FEATURE_linguist=ON -DQT_FEATURE_printsupport=OFF \
-        -DQT_FEATURE_qdoc=OFF -DQT_FEATURE_qmake=OFF -DQT_FEATURE_sql=OFF \
-        -DQT_FEATURE_testlib=OFF -DQT_FEATURE_assistant=OFF \
-        -DQT_FEATURE_designer=OFF -DQT_FEATURE_pixeltool=OFF \
-        -DQT_FEATURE_qdbus=OFF -DQT_FEATURE_qtattributionsscanner=OFF \
-        -DQT_FEATURE_qtdiag=OFF -DQT_FEATURE_qtplugininfo=OFF \
-        "${qt_apple_options[@]}"
+    # Bash 3.2 treats an empty "${array[@]}" as unbound when set -u is on.
+    qt_configure=(
+        "$source_dir/configure"
+        -static -release -ltcg -system-zlib -system-libpng -no-opengl
+        -opensource -confirm-license -prefix "$install_prefix"
+        -submodules qtbase,qtsvg,qttools,qttranslations
+        -skip qtactiveqt -skip qtdeclarative -skip qtimageformats
+        -skip qtlanguageserver -skip qtshadertools
+        -nomake tests -nomake examples --
+        -DCMAKE_OSX_ARCHITECTURES="$cmake_arch"
+        -DCMAKE_OSX_DEPLOYMENT_TARGET="$qt_deployment_target"
+        -DCMAKE_PREFIX_PATH="$dependency_prefix"
+        -DZLIB_ROOT="$dependency_prefix" -DPNG_ROOT="$dependency_prefix"
+        -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON
+        -DFEATURE_timezone=ON -DFEATURE_timezone_locale=OFF
+        -DFEATURE_dup3=OFF
+        -DQT_FEATURE_concurrent=ON -DQT_FEATURE_dbus=OFF
+        -DQT_FEATURE_linguist=ON -DQT_FEATURE_printsupport=OFF
+        -DQT_FEATURE_qdoc=OFF -DQT_FEATURE_qmake=OFF -DQT_FEATURE_sql=OFF
+        -DQT_FEATURE_testlib=OFF -DQT_FEATURE_assistant=OFF
+        -DQT_FEATURE_designer=OFF -DQT_FEATURE_pixeltool=OFF
+        -DQT_FEATURE_qdbus=OFF -DQT_FEATURE_qtattributionsscanner=OFF
+        -DQT_FEATURE_qtdiag=OFF -DQT_FEATURE_qtplugininfo=OFF
+    )
+    if [[ ${#qt_apple_options[@]} -gt 0 ]]; then
+        qt_configure+=("${qt_apple_options[@]}")
+    fi
+    "${qt_configure[@]}"
 )
 
 cache="$build_dir/CMakeCache.txt"
