@@ -264,6 +264,36 @@ MaterializedConfiguration materializeConfiguration(const QMap<QString, QJsonValu
                 migratedDestroyShortcut = true;
             }
         }
+        bool migratedPreviousShortcutDefault = false;
+        if (mutateDocument && schemaVersion < 6 &&
+            entry.key == QStringLiteral("global_shortcuts/screenshot")) {
+            const auto stored = ConfigurationSchema::normalize(entry.key, raw);
+            const QJsonArray previousMac{QJsonObject{
+                {QStringLiteral("portable"), QStringLiteral("Meta+1")},
+                {QStringLiteral("physical_keys"), QJsonObject{{QStringLiteral("macos"), 18}}},
+            }};
+            const auto previousPhysical = ConfigurationSchema::normalize(entry.key, previousMac);
+            bool matchesPrevious = stored.valid && stored.value == previousPhysical.value;
+#ifdef Q_OS_MACOS
+            if (!matchesPrevious && stored.valid) {
+                const auto previousPortable =
+                    ConfigurationSchema::normalize(entry.key, QJsonArray{QStringLiteral("Meta+1")});
+                matchesPrevious = stored.value == previousPortable.value;
+            }
+#endif
+            if (matchesPrevious) {
+                raw = entry.defaultValue;
+                migratedPreviousShortcutDefault = true;
+            }
+        }
+        if (mutateDocument && schemaVersion < 6 &&
+            entry.key == QStringLiteral("global_shortcuts/screenshot_ocr")) {
+            const auto stored = ConfigurationSchema::normalize(entry.key, raw);
+            if (stored.valid && stored.value.toArray().isEmpty()) {
+                raw = entry.defaultValue;
+                migratedPreviousShortcutDefault = true;
+            }
+        }
 #if SNOW_SHOT_ENABLE_API_CONFIGURATION
         if (entry.key == kCustomModelsKey ||
             entry.key == QStringLiteral("api_configuration/text_translation")) {
@@ -300,10 +330,11 @@ MaterializedConfiguration materializeConfiguration(const QMap<QString, QJsonValu
         result.values.insert(entry.key, normalized.value);
         const bool migratedLegacyValue =
             !overlay.contains(entry.key) || overlay.value(entry.key) != raw;
-        if (mutateDocument &&
-            (replaceAll || normalized.changed || migratedDestroyShortcut || migratedLegacyValue)) {
+        if (mutateDocument && (replaceAll || normalized.changed || migratedDestroyShortcut ||
+                               migratedPreviousShortcutDefault || migratedLegacyValue)) {
             insertPath(&result.document, entry.key, normalized.value);
-            if ((normalized.changed || migratedDestroyShortcut || migratedLegacyValue) &&
+            if ((normalized.changed || migratedDestroyShortcut || migratedPreviousShortcutDefault ||
+                 migratedLegacyValue) &&
                 !replaceAll) {
                 result.dirty = true;
             }

@@ -45,7 +45,8 @@ screenshot action in the application's shortcut settings.
 
 ## Make the shortcuts work on your keyboard
 
-The default capture shortcut is **F1** and clipboard pinning is **F3**.
+The default capture shortcut is **F1**, text recognition is **Ctrl+Shift+C**
+(**Command+Shift+C** on macOS), and clipboard pinning is **F3**.
 Some keyboards require **Fn** to send a function key rather than a media key.
 Another application may also register the same shortcut. Change the binding in
 Snow Shot's shortcut settings if it conflicts with your existing workflow.

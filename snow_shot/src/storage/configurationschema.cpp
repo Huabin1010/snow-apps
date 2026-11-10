@@ -459,7 +459,7 @@ constexpr SchemaString kSchemaStrings2[] = {u"Ctrl+U"};
 constexpr ConfigurationIntegerRange kSchemaRange0{10, 100, 1};
 constexpr SchemaString kSchemaStrings3[] = {u"icon", u"toolbar"};
 constexpr SchemaAllowedValues kSchemaAllowed0 = {kSchemaStrings3, std::size(kSchemaStrings3)};
-constexpr ConfigurationIntegerRange kSchemaRange1{5, 5, 1};
+constexpr ConfigurationIntegerRange kSchemaRange1{6, 6, 1};
 constexpr SchemaString kSchemaStrings4[] = {u"system", u"light", u"dark"};
 constexpr SchemaAllowedValues kSchemaAllowed1 = {kSchemaStrings4, std::size(kSchemaStrings4)};
 constexpr ConfigurationIntegerRange kSchemaRange2{12, 32, 1};
@@ -866,7 +866,7 @@ constexpr SchemaEntryDescriptor kEntryDescriptors[] = {
 #if SNOW_SHOT_ENABLE_API_CONFIGURATION
     {u"api_configuration/custom_models", emptyArrayDefault(), ConfigurationValueKind::Structured},
 #endif
-    {u"storage/schema_version", integerDefault(5), ConfigurationValueKind::Integer, &kSchemaRange1},
+    {u"storage/schema_version", integerDefault(6), ConfigurationValueKind::Integer, &kSchemaRange1},
     {u"interface/theme_mode", stringDefault(u"system"), ConfigurationValueKind::String, nullptr,
      &kSchemaAllowed1},
     {u"interface/theme_primary_color", stringDefault(u"#1677FFFF"), ConfigurationValueKind::String},
@@ -1002,8 +1002,8 @@ constexpr SchemaEntryDescriptor kEntryDescriptors[] = {
      nullptr, nullptr, 2},
     {u"global_shortcuts/screenshot_fixed", emptyArrayDefault(), ConfigurationValueKind::StringList,
      nullptr, nullptr, 2},
-    {u"global_shortcuts/screenshot_ocr", emptyArrayDefault(), ConfigurationValueKind::StringList,
-     nullptr, nullptr, 2},
+    {u"global_shortcuts/screenshot_ocr", stringsDefault(kSchemaStrings83),
+     ConfigurationValueKind::StringList, nullptr, nullptr, 2},
     {u"global_shortcuts/screenshot_ocr_copy", emptyArrayDefault(),
      ConfigurationValueKind::StringList, nullptr, nullptr, 2},
 #if SNOW_SHOT_ENABLE_TEXT_TRANSLATION
@@ -1861,9 +1861,12 @@ QVector<ConfigurationSchemaEntry> buildEntries() {
             found->defaultValue = value;
         }
     };
-    // Portable Meta maps to the physical Control key on Apple platforms.
+    // F1 matches the shared screenshot default. Portable Ctrl is Command on macOS,
+    // so Ctrl+Shift+C is Command+Shift+C. Remaining Meta bindings are physical Control.
     replaceDefault(QStringLiteral("global_shortcuts/screenshot"),
-                   macGlobalShortcutDefault(QStringLiteral("Meta+1"), 18));
+                   macGlobalShortcutDefault(QStringLiteral("F1"), 122));
+    replaceDefault(QStringLiteral("global_shortcuts/screenshot_ocr"),
+                   macGlobalShortcutDefault(QStringLiteral("Ctrl+Shift+C"), 8));
     replaceDefault(QStringLiteral("global_shortcuts/screenshot_copy"),
                    macGlobalShortcutDefault(QStringLiteral("Meta+2"), 19));
     replaceDefault(QStringLiteral("global_shortcuts/restore_last_closed_windows"),

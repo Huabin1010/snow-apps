@@ -173,7 +173,8 @@ void nativeDefaultsRemainIntact(const QString& movies, const QString& pictures) 
                 ConfigurationSchema::defaultValue(QStringLiteral(
                     "screenshot_ui/selection_display_unit")) == QStringLiteral("logical_pixels"),
             "native macOS update and coordinate defaults must remain intact");
-    for (const auto& binding : {std::pair{"global_shortcuts/screenshot", 18u},
+    for (const auto& binding : {std::pair{"global_shortcuts/screenshot", 122u},
+                                std::pair{"global_shortcuts/screenshot_ocr", 8u},
                                 std::pair{"global_shortcuts/screenshot_copy", 19u},
                                 std::pair{"global_shortcuts/pin_clipboard_content", 20u},
                                 std::pair{"global_shortcuts/restore_last_closed_windows", 20u}}) {

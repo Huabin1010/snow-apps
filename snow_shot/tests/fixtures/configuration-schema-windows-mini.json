@@ -199,10 +199,10 @@
       "allowedStringValues": [],
       "defaultJsonType": 2,
       "defaultStringIsNull": false,
-      "defaultValue": 5,
+      "defaultValue": 6,
       "integerRange": [
-        5,
-        5,
+        6,
+        6,
         1
       ],
       "key": "storage/schema_version",
@@ -769,7 +769,11 @@
       "allowedStringValues": [],
       "defaultJsonType": 4,
       "defaultStringIsNull": false,
-      "defaultValue": [],
+      "defaultValue": [
+        {
+          "portable": "Ctrl+Shift+C"
+        }
+      ],
       "integerRange": null,
       "key": "global_shortcuts/screenshot_ocr",
       "maximumListItems": 2,

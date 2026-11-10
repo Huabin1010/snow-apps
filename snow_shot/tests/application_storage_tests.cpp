@@ -900,7 +900,9 @@ void settingsSchemaDefaultsAndValidationAreComplete() {
             !defaultValue("extended_features/jump_to_translation_page").toBool() &&
 #ifdef Q_OS_MACOS
             defaultValue("global_shortcuts/screenshot").toArray() ==
-                QJsonArray{shortcutObject(QStringLiteral("Meta+1"), 18)} &&
+                QJsonArray{shortcutObject(QStringLiteral("F1"), 122)} &&
+            defaultValue("global_shortcuts/screenshot_ocr").toArray() ==
+                QJsonArray{shortcutObject(QStringLiteral("Ctrl+Shift+C"), 8)} &&
             defaultValue("global_shortcuts/screenshot_copy").toArray() ==
                 QJsonArray{shortcutObject(QStringLiteral("Meta+2"), 19)} &&
             defaultValue("global_shortcuts/pin_clipboard_content").toArray() ==
@@ -908,6 +910,8 @@ void settingsSchemaDefaultsAndValidationAreComplete() {
 #else
             defaultValue("global_shortcuts/screenshot").toArray() ==
                 structuredShortcuts(QJsonArray{QStringLiteral("F1")}) &&
+            defaultValue("global_shortcuts/screenshot_ocr").toArray() ==
+                structuredShortcuts(QJsonArray{QStringLiteral("Ctrl+Shift+C")}) &&
             defaultValue("global_shortcuts/screenshot_copy").toArray() ==
                 structuredShortcuts(QJsonArray{QStringLiteral("Ctrl+F1")}) &&
             defaultValue("global_shortcuts/pin_clipboard_content").toArray() ==
@@ -2169,6 +2173,78 @@ void pinnedDestroyShortcutMigratesPreviousDefault() {
             "an explicitly configured Ctrl+Esc on v3 must remain unchanged");
 }
 
+void platformScreenshotShortcutsMigratePreviousDefaults() {
+    QTemporaryDir temporary;
+    require(temporary.isValid(), "failed to create screenshot shortcut migration directory");
+    const QString screenshotKey = QStringLiteral("global_shortcuts/screenshot");
+    const QString ocrKey = QStringLiteral("global_shortcuts/screenshot_ocr");
+    const auto screenshotDefault =
+        storage::ConfigurationSchema::defaultValue(screenshotKey).toArray();
+    const auto ocrDefault = storage::ConfigurationSchema::defaultValue(ocrKey).toArray();
+    const auto write = [&](const QString& name, int version, const QJsonValue& screenshot,
+                           const QJsonValue& ocr) {
+        const QString path = temporary.filePath(name);
+        writeBytes(path,
+                   QJsonDocument(QJsonObject{
+                                     {QStringLiteral("storage"),
+                                      QJsonObject{{QStringLiteral("schema_version"), version}}},
+                                     {QStringLiteral("global_shortcuts"),
+                                      QJsonObject{{QStringLiteral("screenshot"), screenshot},
+                                                  {QStringLiteral("screenshot_ocr"), ocr}}},
+                                 })
+                       .toJson());
+        return path;
+    };
+
+    const QJsonArray previousScreenshot{shortcutObject(QStringLiteral("Meta+1"), 18)};
+    const QString migratedPath =
+        write(QStringLiteral("previous.json"), 5, previousScreenshot, QJsonArray{});
+    {
+        storage::ConfigurationStore store(migratedPath, true, true, 60000);
+        require(store.value(screenshotKey).toArray() == screenshotDefault &&
+                    store.value(ocrKey).toArray() == ocrDefault && store.isDirty() &&
+                    store.value(QStringLiteral("storage/schema_version")).toInt() ==
+                        storage::ConfigurationSchema::currentVersion() &&
+                    store.flushNow().success,
+                "previous macOS screenshot and empty OCR defaults must adopt F1 and Ctrl+Shift+C");
+    }
+    storage::ConfigurationStore reloaded(migratedPath, true, true, 60000);
+    require(reloaded.value(screenshotKey).toArray() == screenshotDefault &&
+                reloaded.value(ocrKey).toArray() == ocrDefault,
+            "migrated screenshot shortcuts must persist");
+
+    const QJsonArray customScreenshot =
+        structuredShortcuts(QJsonArray{QStringLiteral("Ctrl+Alt+K")});
+    const QJsonArray customOcr = structuredShortcuts(QJsonArray{QStringLiteral("Ctrl+Alt+O")});
+    const QString customPath = write(QStringLiteral("custom.json"), 5, customScreenshot, customOcr);
+    storage::ConfigurationStore custom(customPath, true, true, 60000);
+    require(custom.value(screenshotKey).toArray() == customScreenshot &&
+                custom.value(ocrKey).toArray() == customOcr,
+            "custom screenshot and OCR shortcuts must survive the default upgrade");
+
+    const QString portablePath = write(QStringLiteral("portable.json"), 5,
+                                       QJsonArray{QStringLiteral("Meta+1")}, QJsonArray{});
+    storage::ConfigurationStore portable(portablePath, true, true, 60000);
+#ifdef Q_OS_MACOS
+    require(portable.value(screenshotKey).toArray() == screenshotDefault &&
+                portable.value(ocrKey).toArray() == ocrDefault,
+            "macOS string-form Control+1 must migrate to F1");
+#else
+    require(portable.value(screenshotKey).toArray() ==
+                    structuredShortcuts(QJsonArray{QStringLiteral("Meta+1")}) &&
+                portable.value(ocrKey).toArray() == ocrDefault,
+            "Windows Win+1 must stay while an empty OCR shortcut adopts the new default");
+#endif
+
+    const QString keptPath =
+        write(QStringLiteral("current.json"), storage::ConfigurationSchema::currentVersion(),
+              previousScreenshot, QJsonArray{});
+    storage::ConfigurationStore kept(keptPath, true, true, 60000);
+    require(kept.value(screenshotKey).toArray() == previousScreenshot &&
+                kept.value(ocrKey).toArray().isEmpty(),
+            "shortcuts chosen after the upgrade must stay as saved");
+}
+
 void obsoleteClickThroughShortcutIsIgnored() {
     QTemporaryDir temporary;
     require(temporary.isValid(), "failed to create obsolete pinned-shortcut directory");
@@ -3381,7 +3457,7 @@ void futureVersionIsReadOnly() {
     require(temporary.isValid(), "failed to create future-version directory");
     const QString config = QDir(temporary.path()).filePath(QStringLiteral("config.json"));
     writeBytes(config, QByteArrayLiteral("{\n"
-                                         "  \"storage\": {\"schema_version\": 6},\n"
+                                         "  \"storage\": {\"schema_version\": 7},\n"
                                          "  \"interface\": {\"theme_mode\": \"dark\"},\n"
                                          "  \"future\": {\"value\": 42}\n"
                                          "}\n"));
@@ -4502,6 +4578,7 @@ int main(int argc, char** argv) {
         applicationEnterBindingsMigrateAndPersist();
         duplicateShortcutDefaultsSurviveUpgrade();
         localShortcutDefaultsPreserveConfiguredBindings();
+        platformScreenshotShortcutsMigratePreviousDefaults();
         previousSelectionStorageIsRetired();
         return 0;
     }
@@ -4560,6 +4637,7 @@ int main(int argc, char** argv) {
     selectionAspectRatioSettingsValidateAndPreserveLegacyLock();
     settingsSchemaDefaultsAndValidationAreComplete();
     pinnedDestroyShortcutMigratesPreviousDefault();
+    platformScreenshotShortcutsMigratePreviousDefaults();
     fullscreenWindowFilterPersistsAndDefaultsToGames();
     obsoleteClickThroughShortcutIsIgnored();
     shortcutSchemaMigrationAndPhysicalMetadataRoundTrip();
