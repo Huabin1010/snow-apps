@@ -613,6 +613,15 @@ void directImagesPersistWithoutTouchingTheEditor(
         auto repository = storage::makeCaptureHistoryRepository(root);
         auto draft = directCaptureHistoryDraft(
             request, frame, storage::PreparedPngImage::fromBytes(image.size(), png));
+        const QImage scaled = solidImage(QSize(20, 10), qRgb(24, 50, 70));
+        const auto scaledDraft = directCaptureHistoryDraft(
+            request, frame,
+            storage::PreparedPngImage::fromBytes(scaled.size(),
+                                                 snow_shot::image_codec::encodePng(scaled, 9)));
+        require(!scaledDraft.resultImage && scaledDraft.preparedResultImage &&
+                    scaledDraft.preparedResultImage->pixelSize() == scaled.size() &&
+                    scaledDraft.displays.front().image == image && frame.isValid(),
+                "downscaled direct output must retain native capture geometry and source pixels");
         require(draft.desktopGeometry &&
                     draft.desktopGeometry->canvasOrigin == physicalBounds.topLeft() &&
                     !draft.desktopGeometry->canvasUsesPoints,
@@ -3050,8 +3059,12 @@ void selectAllShortcutSelectsCurrentScreenThenDesktop() {
         ScreenshotOverlayInputActions actions;
         actions.currentLogicalCursorPosition = [&] { return cursor; };
         actions.localShortcutInputAllowed = [&] { return inputAllowed; };
-        actions.prepareExplicitSelectionCommand = [&] { ++preparations; };
-        actions.prepareSelectionReplacement = [&] { ++replacements; };
+        actions.prepareSelection = [&](ScreenshotSelectionIntent intent) {
+            if (intent == ScreenshotSelectionIntent::SupersedeWithCommand)
+                ++preparations;
+            else
+                ++replacements;
+        };
         actions.showToolbar = [&] { ++presentations; };
         actions.selectionConfirmed = [&] { ++confirmations; };
         ScreenshotOverlayInputHandler handler(
@@ -3243,7 +3256,10 @@ void selectAllShortcutHandsConfirmedRegionToPendingRecording() {
         QRect recordingRegion;
         ScreenshotOverlayInputActions actions;
         actions.currentLogicalCursorPosition = [&] { return screen.logicalRect.center(); };
-        actions.prepareExplicitSelectionCommand = [&] { pendingRecording = false; };
+        actions.prepareSelection = [&](ScreenshotSelectionIntent intent) {
+            if (intent == ScreenshotSelectionIntent::SupersedeWithCommand)
+                pendingRecording = false;
+        };
         actions.showToolbar = [&] { ++toolbarShows; };
         actions.selectionConfirmed = [&] {
             ++confirmations;
@@ -3333,7 +3349,9 @@ void previousSelectionShortcutUsesSharedConfirmation() {
                     int presentations = 0;
                     int preparations = 0;
                     ScreenshotOverlayInputActions actions;
-                    actions.prepareExplicitSelectionCommand = [&] {
+                    actions.prepareSelection = [&](ScreenshotSelectionIntent intent) {
+                        require(intent == ScreenshotSelectionIntent::SupersedeWithCommand,
+                                "toolbar commands explicitly supersede the launch action");
                         ++preparations;
                         pending = false;
                     };
@@ -5590,7 +5608,9 @@ void selectionStagesActivateEveryToolbarShortcut() {
                 actions.canActivateDrawingShortcut = [&](const QString& command) {
                     return drawing && command == id && available;
                 };
-                actions.prepareExplicitSelectionCommand = [&] {
+                actions.prepareSelection = [&](ScreenshotSelectionIntent intent) {
+                    require(intent == ScreenshotSelectionIntent::SupersedeWithCommand,
+                            "tool commands explicitly supersede the launch action");
                     ++preparations;
                     pendingQuickAction = false;
                     rememberedTool = false;
@@ -5713,7 +5733,9 @@ void globalScreenshotShortcutsUseCurrentSelection() {
             actions.canActivateScreenshotShortcut = [&](const QString& id) {
                 return id == QLatin1String(localAction);
             };
-            actions.prepareExplicitSelectionCommand = [&] {
+            actions.prepareSelection = [&](ScreenshotSelectionIntent intent) {
+                require(intent == ScreenshotSelectionIntent::SupersedeWithCommand,
+                        "local commands explicitly supersede the launch action");
                 ++preparations;
                 pendingAction = false;
             };
@@ -5898,7 +5920,11 @@ void rejectedGlobalScreenshotShortcutsPreserveSession() {
                 interaction.setCanvasTool(ScreenshotActiveTool::Shape);
                 return true;
             };
-            actions.prepareExplicitSelectionCommand = [&] { ++mutations; };
+            actions.prepareSelection = [&](ScreenshotSelectionIntent intent) {
+                require(intent == ScreenshotSelectionIntent::SupersedeWithCommand,
+                        "drawing commands explicitly supersede the launch action");
+                ++mutations;
+            };
             actions.showToolbar = [&] { ++mutations; };
             actions.selectionConfirmed = [&] { ++mutations; };
             const auto region = selection.selectionRegion();
@@ -6046,7 +6072,11 @@ void toolbarSelectionPreparationRejectsIncompleteRegions() {
     interaction.enterOverlayVisible(true);
     int preparations = 0;
     ScreenshotOverlayInputActions actions;
-    actions.prepareExplicitSelectionCommand = [&] { ++preparations; };
+    actions.prepareSelection = [&](ScreenshotSelectionIntent intent) {
+        require(intent == ScreenshotSelectionIntent::SupersedeWithCommand,
+                "toolbar preparation explicitly supersedes the launch action");
+        ++preparations;
+    };
     ScreenshotOverlayInputHandler handler(
         {capture, interaction, selection, intelligent, geometry, displays, actions});
     const auto rejected = [&] {
@@ -6199,8 +6229,9 @@ void pendingSelectionCommandsDoNotPresentRetiredCaptures() {
             int presentations = 0;
             ScreenshotOverlayInputActions actions;
             actions.currentLogicalCursorPosition = [] { return QPoint(100, 100); };
-            actions.prepareExplicitSelectionCommand = [] {
-                require(false, "region confirmation must preserve the pending capture action");
+            actions.prepareSelection = [](ScreenshotSelectionIntent intent) {
+                require(intent == ScreenshotSelectionIntent::PreserveLaunchAction,
+                        "region confirmation must preserve the pending capture action");
             };
             actions.showToolbar = [&] { ++presentations; };
             actions.showSelectionToolbar = [&] { ++presentations; };

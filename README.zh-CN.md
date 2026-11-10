@@ -1,125 +1,161 @@
-# Snow Shot — 免费开源截图、OCR 与录屏工具
+<div align="center">
+  <a href="https://snowshot.top">
+    <img src="docs/imgs/app-icon.png" width="112" height="112" alt="Snow Shot 标志">
+  </a>
 
-[English](README.md) | 简体中文
+  <h1>Snow Shot</h1>
 
-<img src="docs/imgs/app-icon.png" alt="Snow Shot 应用图标" width="96" height="96">
+  <p><strong>截图、标注、录屏，一气呵成。</strong></p>
+  <p>适用于 Windows 和 macOS 的免费开源截图与录屏工具。</p>
 
-**Snow Shot（SnowShot）是一款面向 Windows 和 macOS 的免费开源截图工具**。
-从截图标注、滚动长截图，到离线 OCR 文字识别、桌面贴图和屏幕录制，
-在同一个应用中完成捕捉、整理和分享。
+  <p>
+    <a href="https://github.com/mg-chao/snow-shot/releases"><img src="https://img.shields.io/github/v/release/mg-chao/snow-shot?style=flat-square&amp;color=9254DE&amp;logo=github&amp;label=release" alt="最新版本"></a>
+    <a href="https://github.com/mg-chao/snow-shot/releases"><img src="https://img.shields.io/github/downloads/mg-chao/snow-shot/total?style=flat-square&amp;color=1677FF&amp;label=downloads" alt="GitHub 发布文件累计下载量"></a>
+    <a href="https://github.com/mg-chao/snow-shot/stargazers"><img src="https://img.shields.io/github/stars/mg-chao/snow-shot?style=flat-square&amp;color=B88718&amp;label=stars" alt="GitHub Star 数"></a>
+    <a href="https://github.com/mg-chao/snow-shot/commits"><img src="https://img.shields.io/github/last-commit/mg-chao/snow-shot?style=flat-square&amp;color=389E8D&amp;label=last%20commit" alt="最近提交时间"></a>
+    <a href="snow_shot/COPYRIGHT"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-81B950?style=flat-square" alt="GPL-3.0-or-later 许可证"></a>
+  </p>
 
-[**下载最新版本**](https://github.com/mg-chao/snow-apps/releases/latest)
-· [快速上手](docs/guide/zh-CN/getting-started.md)
-· [使用指南](docs/guide/zh-CN/README.md)
-· [官方网站](https://snowshot.top/zh/)
-· [反馈问题](https://github.com/mg-chao/snow-apps/issues)
+  <p>
+    <a href="#download"><img src="https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square" alt="支持 Windows x64 和 ARM64"></a>
+    <a href="#download"><img src="https://img.shields.io/badge/macOS-15%2B-64748B?style=flat-square&amp;logo=apple&amp;logoColor=white" alt="支持 macOS 15 及以上"></a>
+    <a href="docs/development.md"><img src="https://img.shields.io/badge/C%2B%2B-00599C?style=flat-square&amp;logo=cplusplus&amp;logoColor=white" alt="使用 C++ 构建"></a>
+    <a href="docs/development.md"><img src="https://img.shields.io/badge/Qt-2E8B57?style=flat-square&amp;logo=qt&amp;logoColor=white" alt="使用 Qt 构建"></a>
+    <a href="docs/development.md"><img src="https://img.shields.io/badge/Rust-A65332?style=flat-square&amp;logo=rust&amp;logoColor=white" alt="使用 Rust 构建"></a>
+  </p>
 
-这里是由 [mg-chao](https://github.com/mg-chao) 维护的 **Snow Shot 官方 GitHub 仓库**。
-仓库名为 **Snow Apps**，同时包含 Snow Image Viewer 看图工具和共享库。
-原仓库地址 `mg-chao/snow-shot` 已重定向到这里。**官方网站为 snowshot.top**。
+  <p>
+    <a href="https://snowshot.top"><strong>官方网站</strong></a> ·
+    <a href="https://github.com/mg-chao/snow-shot/releases"><strong>下载使用</strong></a> ·
+    <a href="https://github.com/mg-chao/snow-shot/issues">反馈问题</a> ·
+    <a href="README.md">English</a> · 简体中文
+  </p>
+</div>
 
-## 功能
+<br>
 
-| 使用场景 | Snow Shot 提供的功能 | 使用指南 |
-| --- | --- | --- |
-| 反馈问题、说明重点 | 区域、窗口、全屏和延时截图；箭头、形状、文字、高亮与模糊标注 | [截图与标注](docs/guide/zh-CN/getting-started.md) |
-| 保存长网页、聊天记录 | 滚动截图、拼接预览 | [滚动长截图](docs/guide/zh-CN/scrolling-screenshots.md) |
-| 从图片复制文字 | 本地 OCR；完整版支持表格和二维码识别 | [离线 OCR 文字识别](docs/guide/zh-CN/offline-ocr.md) |
-| 对照资料工作 | 将截图、剪贴板内容固定到其他窗口上方 | [桌面贴图](docs/guide/zh-CN/pin-and-record.md#将参考内容固定到屏幕) |
-| 演示操作过程 | 屏幕录制，可配置音频与光标展示 | [录屏](docs/guide/zh-CN/pin-and-record.md#录制一段操作演示) |
-| 找回以前的截图 | 本地截图历史、搜索和保留策略 | [历史记录与隐私](docs/guide/zh-CN/getting-started.md#历史记录与隐私) |
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/showcase-dark.svg">
+    <img src="docs/images/readme/showcase.svg" width="100%" alt="Snow Shot 功能插画：框选画面、添加标注、固定参考内容、提取文字和录制屏幕。">
+  </picture>
+</p>
 
-## 下载与版本选择
+<p align="center"><sub>截取一刻，表达更多。上图为 Snow Shot 功能示意插画。</sub></p>
 
-优先从 [GitHub Releases](https://github.com/mg-chao/snow-apps/releases/latest) 获取发布包。
-国内下载可使用[官网下载页](https://snowshot.top/zh/download.html)提供的 Gitee 分流。
+## ✨ 特性
 
-| 系统 | 完整版 | Mini |
-| --- | --- | --- |
-| Windows x64 | 在线安装包、离线安装包、便携 ZIP | 在线安装包、便携 ZIP |
-| Windows ARM64 | 原生在线安装包、离线安装包、便携 ZIP | 原生在线安装包、便携 ZIP |
-| macOS 15+ · Apple 芯片 | DMG、Homebrew | DMG |
-| macOS 15+ · Intel | DMG、Homebrew | 暂无 |
+- 📸 **截下想要的画面。** 区域截图、焦点窗口、当前显示器、延时截图与滚动长截图，适配不同场景。
+- ✏️ **把重点讲清楚。** 箭头、形状、文字、序号、高亮、模糊等标注工具，也能用来编辑已有图片。
+- 📌 **让参考资料留在眼前。** 将图片和剪贴板内容固定在其他窗口上方，随时整理、恢复贴图。
+- 🔎 **把图片变成文字。** 本地 OCR 提取文本、识别二维码；还可选用在线服务进行翻译、表格识别和 AI 转换。
+- 🎬 **把操作过程录下来。** 录制屏幕，按需加入系统音频或麦克风，导出视频或 GIF、APNG、WebP 动图。
+- 🧩 **继续处理你的图片。** 拼接多张图片、分割图像，或用全屏画布随手讲解。
+- 🎨 **调整成顺手的样子。** 自定义快捷键、工具栏、主题与导出选项，支持简体中文、繁體中文和 English 界面。
+- 🔌 **接入你的工作流。** 按需开启 MCP，让兼容的 AI 客户端调用 Snow Shot 支持的工具。
 
-- **完整版**：适合需要文字、表格和二维码识别的用户。Windows 离线安装包包含默认 OCR 资源。
-- **Mini**：保留截图、标注、贴图和录屏等能力，文字识别资源按需下载；不包含表格、二维码识别，也不提供离线安装包。
-- **便携版**：解压后运行，适合不需要安装向导的场景。不要只解压单个可执行文件。
+截图、标注、录屏、普通文字识别和二维码识别在本机完成。
+翻译、高级识别、AI 转换及云上传会使用你选择的服务；MCP 默认关闭，可按需开启。
+详见[隐私政策](docs/snow-shot-privacy-policy.zh-CN.md)。
 
-Windows 用户也可以从[微软应用商店](https://apps.microsoft.com/detail/9NRTJ1GBX69V)安装。
+<a id="download"></a>
 
-### Windows 包管理器
+## 📦 下载安装
 
-通过 WinGet 安装完整版离线包：
+[![WinGet](https://img.shields.io/badge/WinGet-0078D4?style=flat-square)](docs/snow-shot-releases.md#winget)
+[![Scoop](https://img.shields.io/badge/Scoop-2E8B57?style=flat-square)](docs/snow-shot-releases.md#scoop)
+[![Homebrew](https://img.shields.io/badge/Homebrew-B88718?style=flat-square&logo=homebrew&logoColor=white)](docs-macos-build.md#homebrew-installation)
+
+前往 [GitHub Releases](https://github.com/mg-chao/snow-shot/releases)，选择与你的系统和处理器匹配的安装包。
+
+| 平台 | 安装方式 |
+| --- | --- |
+| **Windows · x64 / ARM64** | 安装程序或便携 ZIP；完整版离线安装包包含默认 OCR 资源。 |
+| **macOS 15+ · Apple Silicon / Intel** | DMG 或 Homebrew；可用架构以对应版本的发布文件为准。 |
+
+<details>
+<summary><strong>Windows · WinGet</strong></summary>
 
 ```powershell
 winget install --exact --id mg-chao.snow-shot --source winget
 ```
 
-通过 Scoop 官方 Extras 安装便携版：
+包含默认 OCR 资源，软件源也可能收录已发布的 Beta 版本。
+详见 [WinGet 安装与更新说明](docs/snow-shot-releases.md#winget)。
+
+</details>
+
+<details>
+<summary><strong>Windows · Scoop</strong></summary>
+
+通过官方 Extras 软件源安装 Windows x64 便携版：
 
 ```powershell
 scoop bucket add extras
 scoop install extras/snowshot
 ```
 
-Scoop 更新前请退出 Snow Shot，使用 `scoop update snowshot` 更新。
-分发渠道和版本同步方式见[发布说明](docs/snow-shot-releases.md)。
+升级前退出 Snow Shot，并使用 `scoop update snowshot` 管理更新。
+升级及普通卸载会保留设置和历史记录，详见 [Scoop 安装与更新说明](docs/snow-shot-releases.md#scoop)。
 
-### macOS 安装
+</details>
 
-Apple 芯片和 Intel Mac 均需 macOS 15 或更新版本。安装完整版：
+<details>
+<summary><strong>macOS · Homebrew</strong></summary>
 
 ```sh
 brew update
 brew install --cask mg-chao/tap/snow-shot
 ```
 
-也可下载对应架构的 DMG。首次启动按提示授权屏幕录制；录音等功能需要对应权限。
-签名、权限和迁移说明见 [macOS 安装文档](docs-macos-build.md#homebrew-installation)。
+更新时先退出 Snow Shot，再运行 `brew upgrade --cask snow-shot`。
+安装过程使用本地签名身份，可能请求钥匙串访问及 macOS 隐私权限。
+详见[安装与迁移说明](docs-macos-build.md#homebrew-installation)。
 
-## 第一次截图
+</details>
 
-1. 启动 Snow Shot，按 **F1**，选择区域或窗口。
-2. 在工具栏添加箭头、文字、高亮或模糊标注。
-3. 复制、保存或贴图。**Ctrl+F1**（macOS 为 **Command+F1**） 可在确认选区后直接复制；**F3** 可将剪贴板内容贴到屏幕。
+<details>
+<summary><strong>Snow Shot 和 Snow Shot Mini 怎么选？</strong></summary>
 
-以上为默认快捷键，可在应用快捷键设置中修改。部分键盘需要配合 **Fn** 使用功能键。
-完整操作步骤见[快速上手](docs/guide/zh-CN/getting-started.md)。
+**Snow Shot** 提供完整功能。**Snow Shot Mini** 保留截图、标注、贴图、录屏与手动文字识别，OCR 模型按需下载。
+Mini 不包含二维码、表格、Markdown、HTML、LaTeX、翻译、扩展功能及 API 配置。
 
-## 常见问题
+Mini 支持 Windows 和 Apple Silicon Mac。其文字识别工具栏按钮默认隐藏，贴图自动识别默认关闭。
+详见[版本差异说明](docs/snow-shot-releases.md#snow-shot-mini-paired-releases)。
 
-### 是否免费、是否开源？
+</details>
 
-Snow Shot 免费，源代码使用 **GPL-3.0-or-later** 许可证。
-Snow Apps 是多许可证仓库，共享库和第三方组件保留各自许可证，详见 [LICENSE.md](LICENSE.md)
-和[英文 README 的许可证表](README.md#open-source-licenses)。
+## 🚀 开始使用
 
-### OCR 是否需要联网？
+1. **设一个顺手的快捷键。** 打开 Snow Shot，在「全局快捷键」中选择截图操作并设置按键。
+2. **框选，再加工。** 截取需要的区域，添加标注，或直接识别其中的文字。
+3. **继续你的工作。** 复制、保存，或把结果固定在屏幕旁边；需要展示操作过程时，使用屏幕录制。
 
-标准文字识别在本机执行，首次使用前需要具备模型资源。
-无网络环境建议使用 Windows 完整版离线安装包。在线翻译和可选 AI 功能有独立的网络、服务商要求，
-不能把本地 OCR 与在线功能混为一谈。见[离线 OCR 指南](docs/guide/zh-CN/offline-ocr.md)
-和[隐私政策](https://snowshot.top/zh/privacy.html)。
+macOS 用户请根据所用功能完成权限授权。
+安装帮助与平台说明可查看[官方网站](https://snowshot.top)和 [macOS 指南](docs-macos-build.md)。
 
-### 支持 Linux 吗？
+## 🛠 开发
 
-当前官方桌面安装包面向 Windows 和 macOS，暂无官方 Linux 安装包。
+Snow Shot 使用 **C++ / Qt 和 Rust** 构建。
 
-### 为什么仓库叫 snow-apps？如何识别官方版本？
+```sh
+git clone --recurse-submodules https://github.com/mg-chao/snow-shot.git
+cd snow-shot
+```
 
-本仓库同时维护 Snow Shot、Snow Image Viewer 和相关共享库。
-请使用 **mg-chao/snow-apps** 的 Releases 或 **snowshot.top** 提供的下载入口。
-旧 fork 和第三方下载站可能仍在介绍历史版本。
+[开发指南](docs/development.md)介绍环境准备、构建命令、相关测试和 OCR 子模块维护。
+另可参阅 [macOS 构建指南](docs-macos-build.md)及 [Windows ARM64 构建指南](docs-windows-arm64-build.md)。
 
-## 开发与贡献
+## 🤝 参与贡献
 
-构建和测试约定见 [AGENTS.md](AGENTS.md)，平台说明见
-[Windows ARM64](docs-windows-arm64-build.md) 和 [macOS](docs-macos-build.md)。
-Rust OCR 子模块的维护步骤见[英文 README](README.md#maintain-the-ocr-submodule)。
+遇到问题，可以[提交 Issue](https://github.com/mg-chao/snow-shot/issues)，并附上操作系统、Snow Shot 版本与复现步骤。
 
-仅审查修复问题的 PR，不直接接受新增功能或功能增强的 PR。如有功能需求，请先在社区发起讨论。
-提交前请阅读[贡献指南](CONTRIBUTING.md)。
+目前仅审查修复问题的 PR。新增功能或功能增强请先在社区讨论，再明确后续安排。
+提交修改前，请阅读[贡献指南](CONTRIBUTING.md)和[开发规范](AGENTS.md)。
 
-[问题反馈](https://github.com/mg-chao/snow-apps/issues)
-· [更新日志](https://github.com/mg-chao/snow-apps/releases)
-· [官方社区入口](https://snowshot.top/zh/about.html)
+[![LINUX DO 社区](https://img.shields.io/badge/LINUX%20DO-Community-1677FF?style=flat-square)](https://linux.do)
+
+## 📄 许可证
+
+Snow Shot 基于 [GPL-3.0-or-later](snow_shot/COPYRIGHT) 开源。
+各组件和第三方依赖保留各自许可证，详见[仓库许可范围](LICENSE.md)和[第三方声明](snow_shot/THIRD_PARTY_NOTICES.md)。

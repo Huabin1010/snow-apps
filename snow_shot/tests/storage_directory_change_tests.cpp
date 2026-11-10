@@ -425,6 +425,121 @@ void asynchronousExceptionsRestoreParticipants() {
     }
 }
 
+void rejectedSuspensionLeavesResourcesAndAdmissionAvailable() {
+    QTemporaryDir fixture;
+    auto& app = storage::ApplicationStorage::instance();
+    const QString source = fixture.filePath(QStringLiteral("source"));
+    const QString target = fixture.filePath(QStringLiteral("target"));
+    storage::StorageInitializationOptions options{fixture.filePath(QStringLiteral("bin")), source,
+                                                  60000};
+    options.isolateAuxiliaryStorage = true;
+    require(app.initialize(options).success, "rejected suspension fixture initialized");
+    int suspensions = 0;
+    int resumes = 0;
+    int launches = 0;
+    int completions = 0;
+    app.setDirectoryChangeHooks(
+        [&] {
+            ++suspensions;
+            return suspensions == 1 ? storage::StorageResult::failure(QStringLiteral("busy"))
+                                    : storage::StorageResult::ok();
+        },
+        [&](const QString& root) {
+            require(root == target, "only the acquired retry restores participants");
+            ++resumes;
+        },
+        {},
+        [&](storage::ApplicationStorage::DirectoryChangeTask work) {
+            ++launches;
+            return std::async(std::launch::async, std::move(work));
+        });
+    const auto connection = QObject::connect(
+        &app, &storage::ApplicationStorage::directoryChangeFinished, &app, [&](const auto& result) {
+            require(result.success, "retry completes its committed transaction");
+            ++completions;
+        });
+    const auto rejected = app.requestDirectoryChange(target, true);
+    require(
+        !rejected.success && rejected.error == QStringLiteral("busy") && suspensions == 1 &&
+            resumes == 0 && launches == 0 && completions == 0 && !app.directoryChanging() &&
+            app.configurationDirectory() == source && app.status().writeAvailable &&
+            app.configuration().setValue(QStringLiteral("screenshot_selection/smart_selection"),
+                                         QStringLiteral("disabled")) &&
+            app.pinnedWindows().create(pin()).success,
+        "failed acquisition launches no worker, restores no unowned pause and keeps writes open");
+    require(app.requestDirectoryChange(target, true).success,
+            "failed acquisition releases the preparation reservation for retry");
+    app.waitForDirectoryChange();
+    require(suspensions == 2 && resumes == 1 && launches == 1 && completions == 1 &&
+                app.configurationDirectory() == target && !app.directoryChanging(),
+            "successful retry owns exactly one suspension and completion");
+    QObject::disconnect(connection);
+    app.setDirectoryChangeHooks({}, {});
+    app.shutdown();
+}
+
+void transactionCommitDoesNotReleaseWorkerOwnership() {
+    QTemporaryDir fixture;
+    auto& app = storage::ApplicationStorage::instance();
+    const QString source = fixture.filePath(QStringLiteral("source"));
+    const QString target = fixture.filePath(QStringLiteral("target"));
+    storage::StorageInitializationOptions options{fixture.filePath(QStringLiteral("bin")), source,
+                                                  60000};
+    options.isolateAuxiliaryStorage = true;
+    require(app.initialize(options).success, "worker ownership fixture initialized");
+    std::promise<void> transactionFinished;
+    auto transactionReady = transactionFinished.get_future();
+    std::promise<void> releaseWorker;
+    const auto workerReleased = releaseWorker.get_future().share();
+    int resumes = 0;
+    int completions = 0;
+    app.setDirectoryChangeHooks(
+        [] { return storage::StorageResult::ok(); },
+        [&](const QString& root) {
+            require(root == target, "worker restoration uses the committed destination");
+            ++resumes;
+        },
+        {},
+        [&](storage::ApplicationStorage::DirectoryChangeTask work) {
+            return std::async(std::launch::async, [&, work = std::move(work)] {
+                const auto result = work();
+                require(result.success, "worker transaction commits before terminal release");
+                transactionFinished.set_value();
+                workerReleased.wait();
+                return result;
+            });
+        });
+    const auto connection = QObject::connect(
+        &app, &storage::ApplicationStorage::directoryChangeFinished, &app, [&](const auto& result) {
+            require(result.success, "worker release preserves the authoritative transaction");
+            ++completions;
+        });
+    require(app.requestDirectoryChange(target, true).success, "worker ownership request admitted");
+    require(transactionReady.wait_for(std::chrono::seconds(10)) == std::future_status::ready,
+            "transaction commits while the executor still owns borrowed resources");
+    QCoreApplication::processEvents();
+    require(
+        app.directoryChanging() && !app.status().writeAvailable && resumes == 0 &&
+            completions == 0 &&
+            !app.configuration().setValue(QStringLiteral("screenshot_selection/smart_selection"),
+                                          QStringLiteral("disabled")) &&
+            !app.pinnedWindows().create(pin()).success &&
+            !app.requestDirectoryChange(fixture.filePath(QStringLiteral("next")), true).success,
+        "transaction completion cannot reopen producers or retire a still occupied worker");
+    releaseWorker.set_value();
+    app.waitForDirectoryChange();
+    QCoreApplication::processEvents();
+    require(resumes == 1 && completions == 1 && !app.directoryChanging() &&
+                app.status().writeAvailable && app.configurationDirectory() == target &&
+                app.configuration().setValue(QStringLiteral("screenshot_selection/smart_selection"),
+                                             QStringLiteral("disabled")) &&
+                app.pinnedWindows().create(pin()).success,
+            "only actual worker completion releases admission and restores writes once");
+    QObject::disconnect(connection);
+    app.setDirectoryChangeHooks({}, {});
+    app.shutdown();
+}
+
 void completionPreventsEarlyReentryAndAllowsFinalChaining() {
     QTemporaryDir fixture;
     auto& app = storage::ApplicationStorage::instance();
@@ -491,6 +606,182 @@ void completionPreventsEarlyReentryAndAllowsFinalChaining() {
     QObject::disconnect(finishedConnection);
     app.setDirectoryChangeHooks({}, {});
     app.shutdown();
+}
+
+void busyNotificationOwnsTheWorkerBeforeLifecycleReentry() {
+    QTemporaryDir fixture;
+    auto& app = storage::ApplicationStorage::instance();
+    const QString source = fixture.filePath(QStringLiteral("source"));
+    const QString target = fixture.filePath(QStringLiteral("target"));
+    const QString replacement = fixture.filePath(QStringLiteral("replacement"));
+    storage::StorageInitializationOptions options{fixture.filePath(QStringLiteral("bin")), source,
+                                                  60000};
+    options.isolateAuxiliaryStorage = true;
+    require(app.initialize(options).success, "busy notification fixture initialized");
+    int resumed = 0;
+    int completions = 0;
+    bool replaced = false;
+    app.setDirectoryChangeHooks([] { return storage::StorageResult::ok(); },
+                                [&](const QString& root) {
+                                    require(root == target,
+                                            "busy notification shutdown restores committed root");
+                                    ++resumed;
+                                });
+    const auto finishedConnection = QObject::connect(
+        &app, &storage::ApplicationStorage::directoryChangeFinished, &app, [&](const auto& result) {
+            require(result.success, "busy notification shutdown finishes its owned transaction");
+            ++completions;
+        });
+    const auto statusConnection = QObject::connect(
+        &app, &storage::ApplicationStorage::storageStatusChanged, &app,
+        [&](const storage::StorageStatus& status) {
+            if (!status.directoryChanging || replaced)
+                return;
+            // A public busy notification may synchronously run application teardown. The
+            // teardown barrier must already own the worker and restore participants first.
+            replaced = true;
+            app.shutdown();
+            require(resumed == 1 && completions == 1,
+                    "busy notification cannot precede ownership of the worker barrier");
+            auto next = options;
+            next.appDataDirectory = replacement;
+            require(app.initialize(next).success, "status callback safely replaces storage");
+        });
+    require(app.requestDirectoryChange(target, true).success,
+            "busy notification transaction was admitted before synchronous teardown");
+    QCoreApplication::processEvents();
+    require(replaced && resumed == 1 && completions == 1 && app.isInitialized() &&
+                app.configurationDirectory() == replacement && !app.directoryChanging(),
+            "retired request cannot launch against repositories replaced by its notification");
+    QObject::disconnect(statusConnection);
+    QObject::disconnect(finishedConnection);
+    app.setDirectoryChangeHooks({}, {});
+    app.shutdown();
+}
+
+void preparationClosesStorageAdmission() {
+    QTemporaryDir fixture;
+    auto& app = storage::ApplicationStorage::instance();
+    const QString source = fixture.filePath(QStringLiteral("source"));
+    const QString target = fixture.filePath(QStringLiteral("target"));
+    storage::StorageInitializationOptions options{fixture.filePath(QStringLiteral("bin")), source,
+                                                  60000};
+    options.isolateAuxiliaryStorage = true;
+    require(app.initialize(options).success && app.flushNow().success,
+            "preparation admission fixture initialized and settled");
+    QCoreApplication::processEvents();
+    const auto oldHistoryPolicy = app.captureHistoryPolicy();
+    const auto oldPinnedPolicy = app.pinnedWindowPolicy();
+    auto historyPolicy = oldHistoryPolicy;
+    historyPolicy.enabled = !historyPolicy.enabled;
+    auto pinnedPolicy = oldPinnedPolicy;
+    pinnedPolicy.enabled = !pinnedPolicy.enabled;
+    int pinRequests = 0;
+    const auto showConnection =
+        QObject::connect(&app, &storage::ApplicationStorage::pinnedWindowShowRequested, &app,
+                         [&](const auto&) { ++pinRequests; });
+    const auto showsConnection =
+        QObject::connect(&app, &storage::ApplicationStorage::pinnedWindowsShowRequested, &app,
+                         [&](const auto&) { ++pinRequests; });
+    const auto deleteConnection =
+        QObject::connect(&app, &storage::ApplicationStorage::pinnedWindowDeleteRequested, &app,
+                         [&](const auto&) { ++pinRequests; });
+    const auto checkBlocked = [&] {
+        require(!app.requestCaptureHistoryPolicyAsync(historyPolicy).get().success &&
+                    !app.requestCaptureHistoryClearAsync().get().success &&
+                    !app.requestPinnedWindowPolicy(pinnedPolicy) &&
+                    !app.requestPinnedWindowClear() &&
+                    !app.requestThumbnailCacheClearAsync().get().success &&
+                    !app.requestRecordingTempClearAsync().get().success &&
+                    !app.requestSmartSelectionModeAsync(snow_shot::SmartSelectionMode::Disabled)
+                         .get()
+                         .success &&
+                    !app.checkpoint().result().success,
+                "preparation and restoration reject new storage producers before draining");
+        app.requestPinnedWindowShow(QStringLiteral("pin"));
+        app.requestPinnedWindowsShow({QStringLiteral("pin")});
+        app.requestPinnedWindowDelete({QStringLiteral("pin")});
+        app.requestPinnedWindowRetentionCleanup();
+        app.requestStorageUsageRefresh();
+        app.requestStorageUsageRefreshIfStale();
+        const auto status = app.status();
+        require(pinRequests == 0 && app.captureHistoryPolicy() == oldHistoryPolicy &&
+                    app.pinnedWindowPolicy() == oldPinnedPolicy && !status.historyClearing &&
+                    !status.pinnedClearing && !status.cacheClearing &&
+                    !status.historyPolicyUpdating && !status.pinnedPolicyUpdating,
+                "blocked requests leave policies, command publication and busy flags unchanged");
+    };
+    int phases = 0;
+    app.setDirectoryChangeHooks(
+        [&] {
+            require(!app.directoryChanging(), "application admission precedes public busy state");
+            checkBlocked();
+            ++phases;
+            return storage::StorageResult::ok();
+        },
+        [&](const QString& root) {
+            require(root == target, "restoration receives committed destination");
+            checkBlocked();
+            ++phases;
+        });
+    require(app.requestDirectoryChange(target, true).success, "prepared migration starts");
+    app.waitForDirectoryChange();
+    require(phases == 2 && app.configurationDirectory() == target && !app.directoryChanging() &&
+                app.checkpoint().result().success && app.requestPinnedWindowPolicy(pinnedPolicy) &&
+                app.requestCaptureHistoryPolicyAsync(historyPolicy).get().success,
+            "final completion releases admission with original policies intact");
+    app.requestPinnedWindowShow(QStringLiteral("pin"));
+    require(pinRequests == 1, "pin commands reopen only after restoration finishes");
+    QObject::disconnect(showConnection);
+    QObject::disconnect(showsConnection);
+    QObject::disconnect(deleteConnection);
+    app.setDirectoryChangeHooks({}, {});
+    app.shutdown();
+}
+
+void preparationRevalidatesTheLiveStorageOwner() {
+    enum class Change { Shutdown, ReplaceRoot, ReplaceRepositories };
+    for (const auto change : {Change::Shutdown, Change::ReplaceRoot, Change::ReplaceRepositories}) {
+        QTemporaryDir fixture;
+        auto& app = storage::ApplicationStorage::instance();
+        const QString source = fixture.filePath(QStringLiteral("source"));
+        const QString replacement = fixture.filePath(QStringLiteral("replacement"));
+        const QString currentRoot = change == Change::ReplaceRoot ? replacement : source;
+        storage::StorageInitializationOptions options{fixture.filePath(QStringLiteral("bin")),
+                                                      source, 60000};
+        options.isolateAuxiliaryStorage = true;
+        require(app.initialize(options).success, "live-owner admission fixture initialized");
+        int resumes = 0;
+        bool launched = false;
+        app.setDirectoryChangeHooks(
+            [&] {
+                app.shutdown();
+                if (change != Change::Shutdown) {
+                    auto next = options;
+                    next.appDataDirectory = currentRoot;
+                    require(app.initialize(next).success, "nested lifecycle replaces storage");
+                }
+                return storage::StorageResult::ok();
+            },
+            [&](const QString& root) {
+                ++resumes;
+                require(root == currentRoot,
+                        "rejected preparation restores against the current authoritative root");
+            },
+            {},
+            [&](storage::ApplicationStorage::DirectoryChangeTask work) {
+                launched = true;
+                return std::async(std::launch::async, std::move(work));
+            });
+        require(
+            !app.requestDirectoryChange(fixture.filePath(QStringLiteral("target")), true).success &&
+                resumes == 1 && !launched && !app.directoryChanging() &&
+                app.isInitialized() == (change != Change::Shutdown) &&
+                app.configurationDirectory() == currentRoot,
+            "final admission rejects changed ownership without launching or restoring stale state");
+        app.setDirectoryChangeHooks({}, {});
+        app.shutdown();
+    }
 }
 
 void progressDeliveryIsBoundedAndRetiredBeforeCompletion() {
@@ -708,6 +999,11 @@ int main(int argc, char** argv) {
     liveSwitch(false);
     flushFailureRestoresAvailability();
     asynchronousExceptionsRestoreParticipants();
+    rejectedSuspensionLeavesResourcesAndAdmissionAvailable();
+    transactionCommitDoesNotReleaseWorkerOwnership();
     completionPreventsEarlyReentryAndAllowsFinalChaining();
+    busyNotificationOwnsTheWorkerBeforeLifecycleReentry();
+    preparationClosesStorageAdmission();
+    preparationRevalidatesTheLiveStorageOwner();
     progressDeliveryIsBoundedAndRetiredBeforeCompletion();
 }

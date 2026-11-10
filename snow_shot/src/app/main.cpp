@@ -92,19 +92,13 @@ namespace {
 snow_shot::diagnostics::DiagnosticsOptions
 startupDiagnosticsOptions(const QString& selectedDirectory, const QString& applicationName) {
     const bool storeManaged = snow_shot::app::distribution::isStoreManaged();
-    bool unifiedApplicationData = false;
-#ifdef Q_OS_WIN
-    unifiedApplicationData = !storeManaged;
-#endif
     const QString stableRoot =
         storeManaged ? snow_shot::app::distribution::writableDataDirectory()
-                     : QStandardPaths::writableLocation(unifiedApplicationData
-                                                            ? QStandardPaths::AppDataLocation
-                                                            : QStandardPaths::AppLocalDataLocation);
+                     : QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString temporaryRoot =
         QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation)).canonicalPath();
     return snow_shot::diagnostics::diagnosticsOptionsForPaths(
-        {unifiedApplicationData, selectedDirectory, stableRoot, temporaryRoot, applicationName,
+        {selectedDirectory, stableRoot, temporaryRoot, applicationName,
          storeManaged ? snow_shot::app::distribution::packageFamilyName() : QString()});
 }
 
@@ -196,7 +190,8 @@ int main(int argc, char* argv[]) {
     if (argc >= 2 && QString::fromLocal8Bit(argv[1]) == u"--clipboard-pin-tests") {
         return runScreenshotControllerClipboardTests(argc, argv);
     }
-    if (argc == 2 && (QString::fromLocal8Bit(argv[1]) == u"--controller-reselection-tests" ||
+    if (argc == 2 && (QString::fromLocal8Bit(argv[1]) == u"--hidpi-scaling-tests" ||
+                      QString::fromLocal8Bit(argv[1]) == u"--controller-reselection-tests" ||
                       QString::fromLocal8Bit(argv[1]) == u"--automatic-selection-tests" ||
                       QString::fromLocal8Bit(argv[1]) == u"--shell-file-startup-tests" ||
                       QString::fromLocal8Bit(argv[1]) == u"--image-editor-pin-tests")) {
@@ -422,10 +417,10 @@ int main(int argc, char* argv[]) {
         return result == SNOW_RECORDING_RESULT_OK ? 0 : 1;
     }
     // A probe runs before diagnostics, singleton acquisition, or any live user-state access.
-    if (argc == 3 && QString::fromLocal8Bit(argv[1]) == u"--update-probe") {
-        if (QString::fromLocal8Bit(argv[2]) != QCoreApplication::applicationVersion()) {
-            return 3;
-        }
+    if (const auto probeRequest = snow_shot::app::inspectUpdateProbeRequest(
+            argc, argv, QCoreApplication::applicationVersion())) {
+        if (*probeRequest != 0)
+            return *probeRequest;
         qputenv("QT_QPA_PLATFORM", "offscreen");
         QApplication probe(argc, argv);
         adqt::widgets::initializePlatformCompatibility(probe);

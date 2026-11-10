@@ -8,8 +8,14 @@
 #endif
 
 class ScreenshotOverlayWindow;
+class ScreenshotOverlayInputHandler;
+class ScreenshotSelectionModel;
+class ScreenshotInteractionState;
+class ScreenshotIntelligentSelectionModel;
 class SnowCanvasRuntime;
 class ScreenshotToolbarCommandSink;
+class ScreenshotScrollingCaptureController;
+class ScreenshotScrollingSnapshot;
 struct ScreenshotSelectionParams;
 
 // Implemented only in test builds, where the controller's private implementation is complete.
@@ -18,14 +24,29 @@ class ScreenshotControllerTestAccess {
     static void prepareSelection(ScreenshotController& controller, QImage image,
                                  const ScreenshotSelectionParams& selection);
     static SnowCanvasRuntime& runtime(ScreenshotController& controller);
+    static ScreenshotOverlayInputHandler& overlayInput(ScreenshotController& controller);
+    static ScreenshotSelectionModel& selection(ScreenshotController& controller);
+    static ScreenshotInteractionState& interaction(ScreenshotController& controller);
+    static ScreenshotIntelligentSelectionModel&
+    intelligentSelection(ScreenshotController& controller);
     static ScreenshotOverlayWindow* presentSelection(ScreenshotController& controller);
     static void confirmCaptureSelection(ScreenshotController& controller,
                                         ScreenshotController::CaptureAction action);
     [[nodiscard]] static bool exportActive(const ScreenshotController& controller);
+    [[nodiscard]] static bool clipboardFormulaPending(const ScreenshotController& controller);
+    [[nodiscard]] static quint64 clipboardPinGeneration(const ScreenshotController& controller);
+    static void setDisplayScale(ScreenshotController& controller, qreal scale);
+    static void prepareScrollingSnapshot(ScreenshotController& controller,
+                                         ScreenshotScrollingSnapshot snapshot);
+    static void prepareScrollingSnapshot(ScreenshotScrollingCaptureController& controller,
+                                         ScreenshotScrollingSnapshot snapshot, QRect selection,
+                                         ScreenshotOverlayWindow* overlay);
+    static ScreenshotToolbarCommandSink& commands(ScreenshotController& controller);
 #ifdef Q_OS_MACOS
     static void
     installSessionFocus(ScreenshotController& controller,
-                        snow_shot::platform::macos::ScreenshotSessionFocus::Capture capture);
-    static ScreenshotToolbarCommandSink& commands(ScreenshotController& controller);
+                        snow_shot::platform::macos::ScreenshotSessionFocus::Capture capture,
+                        std::unique_ptr<snow_shot::platform::macos::ScreenshotBackgroundWindowGuard>
+                            background = {});
 #endif
 };

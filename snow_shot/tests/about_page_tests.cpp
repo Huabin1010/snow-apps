@@ -471,7 +471,7 @@ void updatePolicyAndUnavailableCopy() {
         {},
         0,
         0,
-        QUrl(QStringLiteral("https://github.com/mg-chao/snow-apps/releases/tag/v2.0.0_snow-shot"))};
+        QUrl(QStringLiteral("https://github.com/mg-chao/snow-shot/releases/tag/v2.0.0_snow-shot"))};
     updates.statusChanged();
     auto* action = child<adqt::widgets::AdButton>(page, "aboutUpdateAction");
     require(action->text() == QStringLiteral("Download from GitHub"),
@@ -646,6 +646,13 @@ void updateStatesFitTheVersionPanel() {
                 label->palette().color(QPalette::WindowText) ==
                     styles::ThemeManager::instance().themeColorScheme().map.colorWarningText,
             "blocked restarts keep their action and show the reason in the warning color");
+#ifdef Q_OS_WIN
+    int restartRequests = 0;
+    QObject::connect(&updates, &UpdateService::restartRequested, &page, [&] { ++restartRequests; });
+    action->click();
+    require(restartRequests == 1 && QApplication::activeModalWidget() == nullptr,
+            "clicking restart and update immediately requests the update without a dialog");
+#endif
     page.hide();
     styles::ThemeManager::instance().setThemeAppearance(styles::ThemeAppearance::Light);
 }
