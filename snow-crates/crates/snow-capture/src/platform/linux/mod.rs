@@ -274,10 +274,8 @@ impl LinuxCapturer {
         )));
         Ok(())
     }
-}
 
-impl MonitorCapturer for LinuxCapturer {
-    fn capture(&mut self, _reuse: Option<Frame>) -> CaptureResult<Frame> {
+    fn capture_once(&mut self) -> CaptureResult<Frame> {
         self.ensure()?;
         let pipe_result = match self.source.as_mut() {
             Some(Source::Pipe(pump)) => Some(pump.next(FRAME_WAIT)),
@@ -313,6 +311,20 @@ impl MonitorCapturer for LinuxCapturer {
                 Ok(frame)
             }
             _ => Err(CaptureError::AccessLost),
+        }
+    }
+}
+
+impl MonitorCapturer for LinuxCapturer {
+    fn capture(&mut self, _reuse: Option<Frame>) -> CaptureResult<Frame> {
+        // A parked stream can go silent without reporting Error. Retry once
+        // with a fresh ScreenCast session before surfacing the timeout.
+        match self.capture_once() {
+            Err(CaptureError::Timeout) => {
+                self.source = None;
+                self.capture_once()
+            }
+            result => result,
         }
     }
 
@@ -473,5 +485,29 @@ mod tests {
             pixels.iter().any(|byte| *byte != 0),
             "a live desktop frame must contain visible pixels"
         );
+    }
+
+    #[test]
+    fn every_monitor_returns_a_frame_without_waiting_for_damage() {
+        // Idle secondary monitors often never push a second PipeWire buffer.
+        // wait_ready must leave that first buffer available to capture().
+        if std::env::var_os("WAYLAND_DISPLAY").is_none() && std::env::var_os("DISPLAY").is_none() {
+            return;
+        }
+        let backend = LinuxBackend;
+        let monitors = backend.enumerate_monitors().expect("monitors");
+        assert!(!monitors.is_empty());
+        for monitor in &monitors {
+            let mut capturer = backend.create_monitor_capturer(monitor).expect("capturer");
+            let frame = capturer
+                .capture(None)
+                .unwrap_or_else(|error| panic!("{}: {error}", monitor.name()));
+            capturer.release_capture_access();
+            assert_eq!(frame.width(), monitor.desktop_geometry().unwrap().pixel_width);
+            assert_eq!(
+                frame.height(),
+                monitor.desktop_geometry().unwrap().pixel_height
+            );
+        }
     }
 }

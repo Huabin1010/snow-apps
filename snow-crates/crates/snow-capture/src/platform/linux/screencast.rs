@@ -93,15 +93,14 @@ fn portal(region: Region) -> Option<Pump> {
         stream_y: grant.stream.y,
         ..region
     };
-    let mut pump = Pump::start(
+    let pump = Pump::start(
         grant.fd,
         Some(grant.stream.node_id),
         region,
         Some(grant.connection),
     )
     .ok()?;
-    pump.wait_ready(FRAME_WAIT).ok()?;
-    Some(pump)
+    ready_pump(pump)
 }
 
 struct PortalGrant {
@@ -304,28 +303,46 @@ where
     let remote = if let Some(node_id) = node_id {
         match pipewire_socket() {
             Some(fd) => (fd, Some(node_id)),
-            None => return None,
+            None => {
+                let _ = session_proxy.call::<_, _, ()>("Stop", &());
+                return None;
+            }
         }
     } else {
         match stream.call::<_, _, zbus::zvariant::OwnedFd>("Start", &()) {
             Ok(fd) => (OwnedFd::from(fd), None),
             Err(error) => {
                 eprintln!("mutter stream start: {error}");
+                let _ = session_proxy.call::<_, _, ()>("Stop", &());
                 return None;
             }
         }
     };
-    let mut pump = match Pump::start(remote.0, remote.1, region, Some(connection)) {
+    let pump = match Pump::start(remote.0, remote.1, region, Some(connection)) {
         Ok(pump) => pump,
         Err(error) => {
             eprintln!("mutter pipewire: {error}");
+            let _ = session_proxy.call::<_, _, ()>("Stop", &());
             return None;
         }
     };
-    if let Err(error) = pump.wait_ready(FRAME_WAIT) {
-        eprintln!("mutter frame: {error}");
-        return None;
+    match ready_pump(pump) {
+        Some(pump) => Some(pump),
+        None => {
+            eprintln!("mutter frame: timed out waiting for the first buffer");
+            let _ = session_proxy.call::<_, _, ()>("Stop", &());
+            None
+        }
     }
+}
+
+/// Wait for the first PipeWire buffer, then rewind so the caller's first
+/// `next` reuses it. Screen streams often only push on damage; without the
+/// rewind an idle monitor never delivers a second frame within the capture
+/// timeout.
+fn ready_pump(mut pump: Pump) -> Option<Pump> {
+    pump.wait_ready(FRAME_WAIT).ok()?;
+    pump.rewind();
     Some(pump)
 }
 
